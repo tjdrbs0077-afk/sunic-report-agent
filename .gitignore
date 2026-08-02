@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# 런타임 산출물
+data/*.json
+uploads/*
+generated/*
+!**/.gitkeep
+
+# 참고 자료 (용량 크고 사내 자료 포함 가능)
+_ref/*
+!_ref/README.md
+
+# 환경
+.env
+*.log
+
+# OS / 에디터
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

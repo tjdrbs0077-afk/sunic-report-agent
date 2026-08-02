@@ -1,0 +1,36 @@
+# 표준 보고 양식 규칙 — 값은 _ref/보고서양식_스펙.md (보고양식_Sample_4팀.pptx 실측)에서 가져옴
+canvas: { width_in: 10.833333, height_in: 7.5 }
+fonts:
+  latin: Corbel
+  korean: 나눔스퀘어
+  heading_korean: 나눔스퀘어 ExtraBold
+title:
+  font_size: 24
+  bold: true
+  x: 0.298612
+  y: 0.186044
+body_levels:
+  - { level: 1, size: 14, bold: true,  marL: 265113,  indent: -265113, bullet: "auto:1." }
+  - { level: 2, size: 13, bold: true,  marL: 538163,  indent: -266700, bullet: "auto:1)" }
+  - { level: 3, size: 12, bold: true,  marL: 714375,  indent: -179388, bullet: "wingdings:❑" }
+  - { level: 4, size: 11, bold: false, marL: 892175,  indent: -177800, bullet: "arial:–" }
+  - { level: 5, size: 10, bold: false, marL: 1081088, indent: -188913, bullet: "arial:•" }
+table:
+  x_in: 2.897570
+  width_in: 7.519097
+  caption_offset_in: -0.367
+  header_fill: "#DCE6F2"
+  header_font_size: 10.5
+  body_font_size: 10
+  first_col_fill: "#E8E8E8"
+  gridline: { width_pt: 0.75, color: "#BFBFBF" }
+frame:
+  header_fill: "#B7D3EE"
+  border_color: "#7F7F7F"
+  header_font_size: 14
+footnote: { font_size: 8 }
+continuation:
+  rule: "동일 대주제가 다음 장으로 이어지면 Lv1 제목 색을 #FFFFFF 로 바꿔 숨긴다"
+cleanup:
+  remove_empty_textbox: true
+  collapse_spaces: true
