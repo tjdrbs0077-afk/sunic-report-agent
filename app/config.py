@@ -17,6 +17,7 @@ TEMPLATE = ASSETS / "보고양식_Sample_4팀.pptx"
 RULES_FILE = CONFIG_DIR / "standard_rules.yaml"
 REPORT_INDEX = DATA / "reports.json"
 LAYOUT_STORE = DATA / "layout_overrides.json"
+INSIGHT_GRAPH = DATA / "insight_graph.json"
 PROFILE_CACHE = DATA / "template_profile.json"
 
 for folder in (DATA, UPLOADS, GENERATED):

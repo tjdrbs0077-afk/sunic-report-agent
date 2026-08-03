@@ -300,18 +300,18 @@
     <div class="topbar">
       <div>
         <h1>근거형 챗봇</h1>
-        <p>업로드된 보고서 내용만 근거로 답하고, 답변마다 페이지 출처를 표시합니다</p>
+        <p>보고서 근거와 외부 뉴스를 한 번에 — 모든 답변에 출처와 전송 내역이 붙습니다</p>
       </div>
       <span class="demo-badge">DEMO · JSON 저장</span>
     </div>
 
-    <div class="note" style="margin:0 0 14px;">🔒 이 답변은 업로드된 사내 보고서만 사용합니다. 외부 지식이나 추측은 포함되지 않습니다.</div>
-
     <div class="selrow">
-      <label style="font-size:13px; color:var(--text-secondary);">보고서 선택</label>
+      <label id="chatReportLabel" style="font-size:13px; color:var(--text-secondary);">보고서</label>
       <select id="chatReportSel"></select>
       <span id="chatModes" style="display:flex; gap:6px; margin-left:auto;"></span>
     </div>
+
+    <div class="note" id="chatScopeNote" style="margin:0 0 14px;"></div>
 
     <div class="grid g32">
       <div class="card">
@@ -324,8 +324,9 @@
         </div>
       </div>
       <div class="card">
-        <h3>근거 출처 <span class="sub">검색 유사도순</span></h3>
+        <h3 id="chatSourcesTitle">근거 · 전송 내역 <span class="sub">매 답변마다 갱신</span></h3>
         <div id="chatSources"></div>
+        <div id="chatDisclosure"></div>
       </div>
     </div>
   </section>
@@ -335,36 +336,35 @@
     <div class="topbar">
       <div>
         <h1>동향 인사이트</h1>
-        <p>보고서에서 추출한 키워드로 뉴스·특허를 하이브리드 검색(BM25 + 임베딩)해 미리 수집한 결과입니다</p>
+        <p>‘지식 · 동향’ 챗봇으로 조사한 검색어와 공개 뉴스가 누적되는 팀 조사 지식맵입니다</p>
       </div>
-      <span class="demo-badge">DEMO · 더미 데이터 (연동 예정)</span>
+      <span class="demo-badge">DEMO · 예시 데이터 8개 포함</span>
     </div>
 
     <div class="card" style="margin-bottom:14px;">
-      <h3>추출 키워드 <span class="sub">배터리소재사업단 보고서 기준 · n8n이 6시간마다 사전 수집</span></h3>
-      <div>
-        <span class="kw"><b>전고체 배터리</b><span class="n">기사 14</span></span>
-        <span class="kw"><b>황화물 전해질</b><span class="n">기사 8 · 특허 5</span></span>
-        <span class="kw"><b>리튬메탈 음극</b><span class="n">기사 6</span></span>
-        <span class="kw"><b>건식 전극 공정</b><span class="n">기사 4 · 특허 3</span></span>
-        <span class="kw"><b>파일럿 라인</b><span class="n">기사 3</span></span>
-      </div>
+      <h3>조사된 주제 <span class="sub">검색어 기준 · 챗봇 질문이 쌓일수록 늘어납니다</span></h3>
+      <div id="kwList"></div>
     </div>
 
     <div class="grid g2">
       <div class="card">
-        <h3>관련 기사 · 특허 <span class="sub">관련도순 정렬 (리랭커 적용)</span></h3>
+        <h3>수집된 공개 기사 <span class="sub">최신순 · 조사 과정에서 수집</span></h3>
         <div id="artList"></div>
       </div>
       <div class="card">
-        <h3>기업 – 기술 관계 그래프 <span class="sub">LLM 엔티티 추출</span></h3>
-        <svg id="graph" viewBox="0 0 520 360" width="100%" role="img" aria-label="기업과 기술의 관계 그래프"></svg>
+        <h3>조사 지식맵 <span class="sub">기업 – 기술 · 조사 이력 기반</span></h3>
+        <svg id="graph" viewBox="0 0 520 360" width="100%" role="img" aria-label="조사 이력 기반 기업과 기술의 관계 그래프"></svg>
         <div class="legend-inline">
           <span><i class="lg-dot" style="background:#ea002c"></i>우리 사업</span>
           <span><i class="lg-dot" style="background:#f47725"></i>기업</span>
           <span><i class="lg-dot" style="background:#1baf7a"></i>기술</span>
+          <span>─ 근거 추출 관계</span>
+          <span>┄ 함께 언급 (관계 미확정)</span>
+          <span style="opacity:.55;">─ 예시 데이터</span>
         </div>
-        <div class="note">노드에 마우스를 올리면 연결 관계가 강조됩니다.</div>
+        <div id="graphMore"></div>
+        <div id="nodeDetail" class="note" style="display:none;"></div>
+        <div class="note">노드를 클릭하면 상세 정보와 ‘챗봇에 물어보기’가 표시됩니다. 점선은 같은 기사에 함께 등장했다는 뜻이며 협력·경쟁 관계를 의미하지 않습니다.</div>
       </div>
     </div>
   </section>

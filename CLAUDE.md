@@ -23,8 +23,8 @@
 | 2 | s2 | 업로드 · 취합 | `/api/reports/upload`, `/api/merge` |
 | 3 | s3 | 보고서 상세 | `/api/reports/{id}`, `/api/reports/{id}/rules` |
 | 4 | s4 | 페이지 편집 | `/api/layouts`, `/api/generate` |
-| 5 | s5 | 근거형 챗봇 | `/api/chat` |
-| 6 | s6 | 동향 인사이트 | 더미 (연동 예정) |
+| 5 | s5 | 근거형 챗봇 | `/api/chat` — 단일 통합 챗봇 (보고서 전문 + 뉴스, LLM 키 없으면 오프라인 폴백) |
+| 6 | s6 | 동향 인사이트 | `/api/insight/graph` — ⑤ 지식·동향 조사가 누적되는 지식맵 |
 
 ## 디자인 규칙 — 반드시 지킬 것
 
@@ -101,6 +101,8 @@ app/
     builder.py         구조화 JSON → 표준 양식 PPTX
     validator.py       standard_rules.yaml 대조 검사
     retrieve.py        TF-IDF 검색
+    entity.py          검색어·공개 뉴스 → 엔티티 추출 (오프라인 규칙)
+    graph_store.py     동향 그래프 저장·병합 (data/insight_graph.json)
   static/              index.html, css/theme.css, js/*
   assets/              보고양식_Sample_4팀.pptx
 config/standard_rules.yaml
@@ -114,7 +116,8 @@ _ref/                  참고용 원본. 여기 파일은 수정하지 마세요
 - 표 병합 셀 미처리
 - 미리보기(CSS)와 실제 PPT 출력의 폰트 축소 알고리즘이 달라 미세하게 어긋남
 - 동시 편집 충돌 처리 없음
-- ⑥ 동향 인사이트는 전부 더미
+- ⑥ 동향 인사이트: 시드 8개는 예시 데이터. 관계 추출은 오프라인 동시등장(점선)만,
+  LLM 근거 추출(실선)은 2차 (DESIGN_챗봇-동향그래프_연동.md 참고)
 
 이 항목들은 고도화 단계에서 다룹니다. 데모에서는 건드리지 마세요.
 
@@ -124,6 +127,7 @@ _ref/                  참고용 원본. 여기 파일은 수정하지 마세요
 - 프론트 프레임워크 도입
 - DB·로그인 구현
 - 외부 LLM API 를 기본 활성화 (환경변수 있을 때만 사용, 없으면 TF-IDF 폴백)
+- 전송 내역을 disclosure 없이 외부로 보내는 코드 (v2 전송 정책: 허용하되 전부 공개)
 - 원본 보고서에 없는 내용 생성
 - `_ref/` 하위 파일 수정
 
