@@ -9,7 +9,7 @@ Screens.s4 = (function(){
   };
   var STD_BULLETS = ['1.', '1)', '❑', '–', '•'];
 
-  var reports = [], profile = null, payload = null, issues = null;
+  var reports = [], profile = null, payload = null, issues = null, fonts = null;
   var curSlide = 1, selectedKey = 'title';
   var overrides = { global: {}, slides: {} };
   var undoStack = [], redoStack = [], editingField = false;
@@ -61,25 +61,50 @@ Screens.s4 = (function(){
   function pctY(y){ return y / H * 100; }
   function fontPx(pt, canvas){ return Math.max(6, pt * canvas.clientWidth / (W * 72)); }
 
-  /* ── Undo / Redo (스택 50단계) ── */
+  /* ── Undo / Redo (스택 50단계) — 좌표·서식(layout)과 글 내용(content) 모두 ── */
+  function snapLayout(){ return { kind: 'layout', overrides: clone(overrides) }; }
+  function snapContent(){ return { kind: 'content', slides: clone(payload.slides) }; }
+
   function pushUndo(){
-    undoStack.push(clone(overrides));
+    undoStack.push(snapLayout());
     if(undoStack.length > 50) undoStack.shift();
     redoStack = [];
   }
+  function pushUndoContent(){
+    if(!payload) return;
+    undoStack.push(snapContent());
+    if(undoStack.length > 50) undoStack.shift();
+    redoStack = [];
+  }
+
+  function applySnapshot(entry){
+    if(entry.kind === 'layout'){
+      overrides = entry.overrides;
+      renderAll();
+      return Promise.resolve();
+    }
+    payload.slides = entry.slides;
+    return API.put('/api/reports/' + payload.unit.id + '/slides', { slides: entry.slides })
+      .then(function(res){ issues = res.issues; renderAll(); })
+      .catch(function(e){ $id('edStatus').textContent = '되돌리기 저장 실패: ' + e.message; });
+  }
+
   function undo(){
     if(!undoStack.length) return;
-    redoStack.push(clone(overrides));
-    overrides = undoStack.pop();
-    renderAll();
-    $id('edStatus').textContent = '실행 취소 (남은 기록 ' + undoStack.length + '단계)';
+    var entry = undoStack.pop();
+    redoStack.push(entry.kind === 'layout' ? snapLayout() : snapContent());
+    var label = entry.kind === 'layout' ? '좌표·서식' : '글 내용';
+    applySnapshot(entry).then(function(){
+      $id('edStatus').textContent = '실행 취소 — ' + label + ' (남은 기록 ' + undoStack.length + '단계)';
+    });
   }
   function redo(){
     if(!redoStack.length) return;
-    undoStack.push(clone(overrides));
-    overrides = redoStack.pop();
-    renderAll();
-    $id('edStatus').textContent = '다시 실행';
+    var entry = redoStack.pop();
+    undoStack.push(entry.kind === 'layout' ? snapLayout() : snapContent());
+    applySnapshot(entry).then(function(){
+      $id('edStatus').textContent = '다시 실행 — ' + (entry.kind === 'layout' ? '좌표·서식' : '글 내용');
+    });
   }
 
   /* ── 좌측: 페이지 · 개체 목록 ── */
@@ -220,6 +245,7 @@ Screens.s4 = (function(){
     var patch = field === 'body' ? { body: body } : {};
     if(field !== 'body') patch[field] = text;
 
+    pushUndoContent();
     $id('edStatus').textContent = '내용 저장 중…';
     API.patch('/api/reports/' + payload.unit.id + '/slides/' + curSlide, patch).then(function(res){
       payload.slides[curSlide - 1] = res.slide;
@@ -227,7 +253,7 @@ Screens.s4 = (function(){
     }).then(function(v){
       issues = v;
       renderAll();
-      $id('edStatus').textContent = '내용을 저장했습니다. PPT 생성 시 반영됩니다.';
+      $id('edStatus').textContent = '내용을 저장했습니다 (Ctrl+Z로 되돌리기).';
     }).catch(function(e){
       $id('edStatus').textContent = '저장 실패: ' + e.message;
       renderCanvas();
@@ -251,6 +277,7 @@ Screens.s4 = (function(){
     saveBody(body);
   }
   function saveBody(body){
+    pushUndoContent();
     $id('edStatus').textContent = '내용 저장 중…';
     API.patch('/api/reports/' + payload.unit.id + '/slides/' + curSlide, { body: body }).then(function(res){
       payload.slides[curSlide - 1] = res.slide;
@@ -328,18 +355,68 @@ Screens.s4 = (function(){
     $id('edFixPageBtn').classList.toggle('disabled', !mine.length);
     $id('edFixAllBtn').classList.toggle('disabled', !issues || !issues.total);
   }
-  function autofix(onlyPage){
+  /* 자동 수정: 먼저 무엇이 바뀌는지 보여주고, 확인을 받은 뒤 적용한다 */
+  var pendingFixScope = null;
+
+  function showFixPreview(onlyPage){
     if(!payload) return;
+    var url = '/api/reports/' + payload.unit.id + '/autofix/preview' + (onlyPage ? '?slide_no=' + curSlide : '');
+    $id('edStatus').textContent = '바뀔 내용을 확인하는 중…';
+    API.get(url).then(function(res){
+      if(!res.count){
+        $id('edPreviewBox').style.display = 'none';
+        $id('edStatus').textContent = onlyPage ? '이 페이지는 고칠 내용이 없습니다.' : '고칠 내용이 없습니다.';
+        return;
+      }
+      pendingFixScope = onlyPage;
+      $id('edPreviewCount').textContent = res.count + '곳';
+      $id('edPreviewList').innerHTML = res.changes.map(function(c){
+        var after = c.removed
+          ? '<span class="badpt">삭제됨</span>'
+          : '<span class="fixedpt">' + esc(c.after) + '</span>';
+        var level = (c.before_level != null && c.after_level != null && c.before_level !== c.after_level)
+          ? ' <span class="sub">단계 ' + (c.before_level + 1) + ' → ' + (c.after_level + 1) + '</span>' : '';
+        return '<div style="padding:8px 0; border-bottom:1px solid var(--grid); font-size:12.5px;">' +
+          '<div style="color:var(--text-muted); font-size:11px; margin-bottom:3px;">p.' + c.slide_no + ' · ' + esc(c.field) + level + '</div>' +
+          '<div><span class="badpt">' + esc(c.before) + '</span></div>' +
+          '<div style="margin-top:2px;">' + after + '</div></div>';
+      }).join('');
+      $id('edPreviewBox').style.display = '';
+      $id('edStatus').textContent = '아래 내용을 확인하고 적용하세요.';
+    }).catch(function(e){ $id('edStatus').textContent = '미리보기 실패: ' + e.message; });
+  }
+
+  function applyFix(){
+    var onlyPage = pendingFixScope;
     var url = '/api/reports/' + payload.unit.id + '/autofix' + (onlyPage ? '?slide_no=' + curSlide : '');
-    $id('edStatus').textContent = '자동 수정 중…';
+    $id('edStatus').textContent = '자동 수정 적용 중…';
+    pushUndoContent();
     API.post(url).then(function(res){
       issues = res.issues;
       return API.get('/api/reports/' + payload.unit.id);
     }).then(function(p){
       payload = p;
+      $id('edPreviewBox').style.display = 'none';
       renderAll();
-      $id('edStatus').textContent = '자동 수정 완료 — 남은 오류 ' + issues.total + '건';
+      $id('edStatus').textContent = '자동 수정을 적용했습니다 — 남은 오류 ' + issues.total + '건 (Ctrl+Z로 되돌리기)';
     }).catch(function(e){ $id('edStatus').textContent = '자동 수정 실패: ' + e.message; });
+  }
+
+  /* 원문 복원 — 업로드 직후 내용으로. 레이아웃 편집값은 건드리지 않는다 */
+  function restore(onlyPage){
+    if(!payload) return;
+    var url = '/api/reports/' + payload.unit.id + '/restore' + (onlyPage ? '?slide_no=' + curSlide : '');
+    $id('edStatus').textContent = '원문으로 되돌리는 중…';
+    pushUndoContent();
+    API.post(url).then(function(res){
+      payload.slides = res.slides;
+      issues = res.issues;
+      $id('edPreviewBox').style.display = 'none';
+      renderAll();
+      $id('edStatus').textContent = res.restored
+        ? (onlyPage ? '이 페이지를 원문으로 되돌렸습니다.' : res.restored + '개 페이지를 원문으로 되돌렸습니다.') + ' (레이아웃은 그대로)'
+        : '이미 원문과 같습니다.';
+    }).catch(function(e){ $id('edStatus').textContent = '복원 실패: ' + e.message; });
   }
 
   /* ── 드래그 · 속성 ── */
@@ -381,6 +458,34 @@ Screens.s4 = (function(){
       window.removeEventListener('pointermove', move);
     }
   }
+  /* 글꼴 드롭다운은 양식 기준(standard_rules.yaml) 값으로 채운다 */
+  function fillFontSelects(){
+    if(!fonts) return;
+    function options(list, current){
+      var all = list.slice();
+      if(current && all.indexOf(current) < 0) all.unshift(current);
+      return all.map(function(f){
+        var mark = fonts.checked && fonts.installed[f] === false ? ' (미설치)' : '';
+        return '<option value="' + esc(f) + '">' + esc(f) + mark + '</option>';
+      }).join('');
+    }
+    var cfg = normalizeCfg(selectedKey, effective()[selectedKey]);
+    $id('edFont').innerHTML = options(fonts.options.korean, cfg.font_ea);
+    $id('edFontLatin').innerHTML = options(fonts.options.latin, cfg.font_latin || fonts.rule.latin);
+  }
+  function renderFontNote(){
+    var note = $id('edFontNote');
+    if(!fonts || !fonts.checked){ note.style.display = 'none'; return; }
+    var missing = Object.keys(fonts.installed).filter(function(f){
+      return fonts.installed[f] === false &&
+        (f === fonts.rule.latin || f === fonts.rule.korean || f === fonts.rule.heading_korean);
+    });
+    if(!missing.length){ note.style.display = 'none'; return; }
+    note.style.display = '';
+    note.innerHTML = '⚠️ <b>' + esc(missing.join(', ')) + '</b> 글꼴이 이 PC에 없습니다. ' +
+      '생성되는 PPT에는 정상으로 지정되지만, 이 PC에서 열면 다른 글꼴로 보입니다.';
+  }
+
   function loadProps(){
     var cfg = normalizeCfg(selectedKey, effective()[selectedKey]);
     $id('edSelLabel').textContent = LABELS[selectedKey] || selectedKey;
@@ -388,7 +493,9 @@ Screens.s4 = (function(){
     $id('edY').value = (+cfg.y || 0).toFixed(3);
     $id('edW').value = (+cfg.w || 0).toFixed(3);
     $id('edH').value = (+cfg.h || 0).toFixed(3);
-    $id('edFont').value = cfg.font_ea || '나눔스퀘어';
+    fillFontSelects();
+    $id('edFont').value = cfg.font_ea || (fonts ? fonts.rule.korean : '나눔스퀘어');
+    $id('edFontLatin').value = cfg.font_latin || (fonts ? fonts.rule.latin : 'Corbel');
     $id('edSize').value = cfg.font_size || 12;
     $id('edFill').value = (cfg.fill && cfg.fill !== 'transparent') ? cfg.fill : (cfg.header_fill || '#ffffff');
     $id('edText').value = cfg.text_color || cfg.header_text_color || '#000000';
@@ -425,6 +532,13 @@ Screens.s4 = (function(){
       pushUndo();
       var p = objectPatch();
       if(selectedKey === 'frame') p.header_font_ea = this.value; else p.font_ea = this.value;
+      if(selectedKey === 'body') p.level_ea_fonts = [this.value, this.value, this.value, this.value, this.value];
+      renderCanvas();
+    };
+    $id('edFontLatin').onchange = function(){
+      pushUndo();
+      var p = objectPatch();
+      if(selectedKey === 'frame') p.header_font_latin = this.value; else p.font_latin = this.value;
       renderCanvas();
     };
     $id('edSize').addEventListener('input', function(){
@@ -472,7 +586,7 @@ Screens.s4 = (function(){
       pushUndo();
       if(overrides.slides) delete overrides.slides[String(curSlide)];
       renderAll();
-      $id('edStatus').textContent = '현재 페이지 편집값을 초기화했습니다.';
+      $id('edStatus').textContent = '현재 페이지의 좌표·서식을 초기화했습니다. (글 내용은 원문 복원 버튼)';
     };
     $id('edResetAllBtn').onclick = function(){
       pushUndo();
@@ -482,8 +596,15 @@ Screens.s4 = (function(){
         $id('edStatus').textContent = '모든 편집값을 초기화했습니다.';
       });
     };
-    $id('edFixPageBtn').onclick = function(){ autofix(true); };
-    $id('edFixAllBtn').onclick = function(){ autofix(false); };
+    $id('edFixPageBtn').onclick = function(){ showFixPreview(true); };
+    $id('edFixAllBtn').onclick = function(){ showFixPreview(false); };
+    $id('edApplyFixBtn').onclick = applyFix;
+    $id('edCancelFixBtn').onclick = function(){
+      $id('edPreviewBox').style.display = 'none';
+      $id('edStatus').textContent = '자동 수정을 취소했습니다.';
+    };
+    $id('edRestorePageBtn').onclick = function(){ restore(true); };
+    $id('edRestoreAllBtn').onclick = function(){ restore(false); };
     document.addEventListener('keydown', function(e){
       if(activeScreenId() !== 's4' || !payload) return;
       var tag = (e.target.tagName || '').toLowerCase();
@@ -534,8 +655,13 @@ Screens.s4 = (function(){
     load: function(){
       bind();
       var keep = $id('edReportSel').value;
-      Promise.all([API.get('/api/reports'), profile ? Promise.resolve(profile) : API.get('/api/profile')]).then(function(res){
-        reports = res[0]; profile = res[1];
+      Promise.all([
+        API.get('/api/reports'),
+        profile ? Promise.resolve(profile) : API.get('/api/profile'),
+        API.get('/api/fonts')
+      ]).then(function(res){
+        reports = res[0]; profile = res[1]; fonts = res[2];
+        renderFontNote();
         var sel = $id('edReportSel');
         sel.innerHTML = reports.map(function(r){
           return '<option value="' + r.id + '">' + esc(r.name) + ' (' + r.slide_count + 'p)</option>';

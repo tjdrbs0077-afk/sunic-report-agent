@@ -273,6 +273,18 @@
         <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
           <button class="btn ghost" id="edFixPageBtn">이 페이지 자동 수정</button>
           <button class="btn ghost" id="edFixAllBtn">전체 자동 수정</button>
+          <button class="btn ghost" id="edRestorePageBtn">이 페이지 원문 복원</button>
+          <button class="btn ghost" id="edRestoreAllBtn">전체 원문 복원</button>
+        </div>
+
+        <div id="edPreviewBox" style="display:none; margin-top:16px;">
+          <div class="pane-label"><span class="tag orig">수정 전</span> → <span class="tag fixd">수정 후</span>
+            <span class="sub" id="edPreviewCount"></span></div>
+          <div id="edPreviewList" class="scroll-x"></div>
+          <div style="display:flex; gap:8px; margin-top:12px;">
+            <button class="btn primary" id="edApplyFixBtn">이대로 적용</button>
+            <button class="btn ghost" id="edCancelFixBtn">취소</button>
+          </div>
         </div>
       </div>
       <div class="card" style="padding:18px 16px;">
@@ -285,10 +297,10 @@
         </div>
         <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">
           <label style="font-size:11px; color:var(--text-muted);">한글 글꼴
-            <select class="ed-field" id="edFont">
-              <option value="나눔스퀘어">나눔스퀘어</option>
-              <option value="나눔스퀘어 ExtraBold">나눔스퀘어 ExtraBold</option>
-            </select>
+            <select class="ed-field" id="edFont"></select>
+          </label>
+          <label style="font-size:11px; color:var(--text-muted);">영문 글꼴
+            <select class="ed-field" id="edFontLatin"></select>
           </label>
           <label style="font-size:11px; color:var(--text-muted);">글자 크기 (pt)<input type="number" step="0.5" class="ed-field" id="edSize"></label>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
@@ -308,6 +320,8 @@
           <button class="btn ghost" id="edResetPageBtn">현재 페이지 초기화</button>
           <button class="btn ghost" id="edResetAllBtn">전체 초기화</button>
         </div>
+
+        <div class="note" id="edFontNote" style="display:none;"></div>
 
         <h3 style="margin-top:22px;">내용 편집 <span class="sub" id="edTextLabel"></span></h3>
         <div id="edTextPanel"></div>
@@ -367,8 +381,10 @@
         <input id="insQuery" placeholder="직접 검색: 예) 전고체 배터리"
           style="flex:1; min-width:180px; font:inherit; font-size:13px; padding:9px 14px; border:1px solid var(--baseline); border-radius:11px; background:#fff; color:var(--text-primary); box-shadow:var(--shadow-sm);">
         <button class="btn primary" id="insSearchBtn">검색</button>
+        <button class="btn ghost" id="insRefreshBtn">지금 새로고침</button>
       </div>
       <div id="insKeywords"></div>
+      <div class="prog-label" id="insFetchInfo" style="margin-top:10px;"></div>
     </div>
 
     <div class="grid g2">
@@ -377,14 +393,14 @@
         <div id="artList"></div>
       </div>
       <div class="card">
-        <h3>기업 – 기술 관계 그래프 <span class="sub">더미 데이터 · LLM 엔티티 추출 연동 예정</span></h3>
-        <svg id="graph" viewBox="0 0 520 360" width="100%" role="img" aria-label="기업과 기술의 관계 그래프"></svg>
+        <h3>기업·기관 – 기술 관계 그래프 <span class="sub" id="insGraphSub">수집한 기사에서 추출</span></h3>
+        <svg id="graph" viewBox="0 0 520 360" width="100%" role="img" aria-label="기업·기관과 기술의 관계 그래프"></svg>
         <div class="legend-inline">
           <span><i class="lg-dot" style="background:#ea002c"></i>우리 사업</span>
-          <span><i class="lg-dot" style="background:#f47725"></i>기업</span>
+          <span><i class="lg-dot" style="background:#f47725"></i>기업·기관</span>
           <span><i class="lg-dot" style="background:#1baf7a"></i>기술</span>
         </div>
-        <div class="note">노드에 마우스를 올리면 연결 관계가 강조됩니다.</div>
+        <div class="note">노드에 마우스를 올리면 근거 기사와 연결 관계가 표시됩니다. 원 크기와 선 굵기는 기사 건수입니다.</div>
       </div>
     </div>
   </section>

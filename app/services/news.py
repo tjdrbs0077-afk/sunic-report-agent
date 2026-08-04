@@ -18,7 +18,8 @@ from xml.etree import ElementTree
 RSS_ENDPOINT = "https://news.google.com/rss/search"
 USER_AGENT = "Mozilla/5.0 (compatible; sunic-report-agent/1.0)"
 TIMEOUT = 8
-CACHE_TTL = 600  # 초
+CACHE_TTL = 600  # 검색어 단위 메모리 캐시(초)
+REFRESH_INTERVAL = 6 * 3600  # 보고서 단위 재수집 주기 — 6시간
 
 _cache: dict[str, tuple[float, dict[str, Any]]] = {}
 
@@ -227,6 +228,127 @@ def refine_keywords(keywords: list[str], fallback: str = "", limit: int = 4) -> 
             if _useful(token) and token not in out:
                 out.append(token)
     return out[:limit]
+
+
+# ── 기업–기술 관계 그래프 ──────────────────────────────────
+
+# 기사 제목에서 찾아낼 기업. 계열 표기가 다양해 대표 이름으로 묶는다.
+COMPANY_PATTERNS: list[tuple[str, str]] = [
+    ("삼성전자", r"삼성전자"), ("삼성SDI", r"삼성\s?SDI"), ("삼성디스플레이", r"삼성디스플레이"),
+    ("SK하이닉스", r"SK\s?하이닉스"), ("SK온", r"SK\s?온"), ("SK이노베이션", r"SK\s?이노베이션"),
+    ("SK텔레콤", r"SK\s?텔레콤|SKT"), ("SK에코플랜트", r"SK\s?에코플랜트"), ("SK E&S", r"SK\s?E&S"),
+    ("LG에너지솔루션", r"LG\s?에너지솔루션|LG엔솔"), ("LG전자", r"LG전자"), ("LG화학", r"LG화학"),
+    ("현대자동차", r"현대차|현대자동차"), ("기아", r"기아(?!자)"), ("포스코", r"포스코|POSCO"),
+    ("한화", r"한화"), ("두산", r"두산"), ("네이버", r"네이버|NAVER"), ("카카오", r"카카오"),
+    ("엔비디아", r"엔비디아|NVIDIA"), ("인텔", r"인텔|Intel"), ("TSMC", r"TSMC"),
+    ("애플", r"애플|Apple"), ("구글", r"구글|Google"), ("마이크로소프트", r"마이크로소프트|MS|Microsoft"),
+    ("테슬라", r"테슬라|Tesla"), ("도요타", r"도요타|토요타"), ("파나소닉", r"파나소닉"),
+    ("CATL", r"CATL"), ("BYD", r"BYD"), ("퀀텀스케이프", r"퀀텀스케이프|QuantumScape"),
+    ("아마존", r"아마존|AWS"), ("오픈AI", r"오픈\s?AI|OpenAI"),
+]
+# 사전에 없는 기업·기관을 잡아내는 접미사 패턴
+ORG_SUFFIX = re.compile(
+    r"([가-힣A-Za-z]{2,10}(?:전자|화학|에너지|중공업|건설|제철|바이오|반도체|모빌리티|솔루션|시스템즈"
+    r"|공사|공단|협회|연구원|연구소|과학기술원|대학교|산업부|중기부|과기부))"
+)
+# 기사 제목은 "주체, 내용" 형태가 많다 — 쉼표 앞을 주체 후보로 본다
+SUBJECT_HEAD = re.compile(r"^([^,]{2,24}?)\s*,")
+# 지자체·부처 등 기관 접미사
+ORG_TAIL = re.compile(r"(시|군|구|도|부|청|원|회|단|사)$")
+# 주체로 보기 어려운 낱말과 직함
+SUBJECT_STOP = {
+    "AI", "데이터", "제조", "산업", "기술", "세계", "국내", "글로벌", "속보", "단독", "인터뷰",
+    "오늘", "내년", "올해", "정부", "업계", "시장", "미래", "현장", "특집", "기획",
+}
+TITLE_TAIL = re.compile(r"(의원|위원장|장관|차관|사장|대표|회장|교수|본부장|실장|국장|과장)$")
+
+
+def extract_companies(title: str) -> list[str]:
+    """기사 제목에서 기업·기관 이름을 뽑는다 (사전 → 접미사 → 문장 주체 순)."""
+    found: list[str] = []
+    for name, pattern in COMPANY_PATTERNS:
+        if re.search(pattern, title) and name not in found:
+            found.append(name)
+    if found:
+        return found[:3]
+
+    for match in ORG_SUFFIX.findall(title):
+        if match not in found and len(match) >= 3:
+            found.append(match)
+    if found:
+        return found[:3]
+
+    head = SUBJECT_HEAD.match(title)
+    if head:
+        # "제조업 체질개선 확실히…경산시" 처럼 앞말이 붙은 경우 마지막 조각만 쓴다
+        candidate = re.split(r"[…·\]\)》」]", head.group(1))[-1].strip()
+        tokens = candidate.split()
+        if len(tokens) > 1:
+            candidate = tokens[-1]  # "김승기 경기도의원" → "경기도의원"
+        candidate = candidate.strip("‘’“”'\"[]()")
+        if (
+            2 <= len(candidate) <= 12
+            and candidate not in SUBJECT_STOP
+            and not TITLE_TAIL.search(candidate)
+            and (ORG_TAIL.search(candidate) or re.search(r"[A-Za-z]{2,}", candidate))
+        ):
+            found.append(candidate)
+    return found[:3]
+
+
+def build_graph(items: list[dict[str, Any]], unit_name: str, max_nodes: int = 9) -> dict[str, Any]:
+    """수집된 기사에서 기업–기술 관계 그래프를 만든다.
+
+    기사 제목에 기업과 기술 키워드가 함께 나오면 연결한다. 등장 횟수를
+    노드 크기·선 굵기로 표현하고, 근거 기사 제목을 함께 담는다.
+    """
+    from collections import defaultdict
+
+    company_hits: dict[str, list[str]] = defaultdict(list)
+    tech_hits: dict[str, list[str]] = defaultdict(list)
+    edges: dict[tuple[str, str], list[str]] = defaultdict(list)
+
+    for item in items:
+        title = item.get("title", "")
+        tech = item.get("keyword", "")
+        companies = extract_companies(title)
+        if tech:
+            tech_hits[tech].append(title)
+        for company in companies:
+            company_hits[company].append(title)
+            if tech:
+                edges[(company, tech)].append(title)
+
+    top_companies = sorted(company_hits.items(), key=lambda kv: -len(kv[1]))[:max_nodes - 1]
+    kept = {name for name, _ in top_companies}
+    techs = sorted(tech_hits.items(), key=lambda kv: -len(kv[1]))
+
+    nodes: list[dict[str, Any]] = [{
+        "id": "us", "type": "us", "label": _short(unit_name, 14),
+        "weight": len(items), "articles": [],
+    }]
+    for name, titles in top_companies:
+        nodes.append({"id": f"c:{name}", "type": "company", "label": name,
+                      "weight": len(titles), "articles": titles[:3]})
+    for name, titles in techs:
+        nodes.append({"id": f"t:{name}", "type": "tech", "label": name,
+                      "weight": len(titles), "articles": titles[:3]})
+
+    links: list[dict[str, Any]] = []
+    for name, titles in techs:
+        links.append({"source": "us", "target": f"t:{name}", "label": "보고서 키워드",
+                      "weight": len(titles), "articles": []})
+    for (company, tech), titles in edges.items():
+        if company in kept:
+            links.append({"source": f"c:{company}", "target": f"t:{tech}",
+                          "label": f"기사 {len(titles)}건", "weight": len(titles),
+                          "articles": titles[:3]})
+    return {"nodes": nodes, "links": links}
+
+
+def _short(text: str, limit: int) -> str:
+    text = str(text or "").strip()
+    return text if len(text) <= limit else text[:limit - 1] + "…"
 
 
 def search_many(keywords: list[str], per_keyword: int = 4, limit: int = 12) -> dict[str, Any]:
