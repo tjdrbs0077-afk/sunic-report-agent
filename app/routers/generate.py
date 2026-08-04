@@ -49,7 +49,7 @@ def generate(req: GenerateRequest):
     suffix = "_편집본" if has_edits(overrides) else "_자동배열본"
     out = config.GENERATED / f"{slug(unit['name'])}_{len(slides)}p{suffix}.pptx"
     try:
-        generate_report(config.TEMPLATE, unit, slides, out, overrides)
+        generate_report(config.active_template(), unit, slides, out, overrides)
     except Exception as exc:
         raise HTTPException(500, f"PPT 자동 배열 중 오류가 발생했습니다: {type(exc).__name__}: {exc}") from exc
     if not out.exists() or out.stat().st_size < 1000:
@@ -72,7 +72,7 @@ def merge(req: MergeRequest):
             unit, slides = payload["unit"], payload["slides"]
             path = config.GENERATED / f"_merge_{report_id}.pptx"
             overrides = layouts.get(report_id, {}) if req.include_layout_edits else {}
-            generate_report(config.TEMPLATE, unit, slides, path, overrides)
+            generate_report(config.active_template(), unit, slides, path, overrides)
             paths.append(path)
             total_slides += len(slides)
         out = config.GENERATED / f"{slug(req.title)}_{len(ids)}개보고서_{total_slides}p.pptx"

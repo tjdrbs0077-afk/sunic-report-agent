@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import math
+import re
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,12 @@ def safe_rgb(color) -> str | None:
 
 
 def _font_xml(run, latin: str = "Corbel", east_asia: str = "나눔스퀘어") -> None:
+    # 한글 전용 런은 a:latin에도 한글 폰트를 지정한다. PowerPoint가 런의 대표 글꼴로
+    # a:latin을 표시하므로 Corbel로 두면 한글 텍스트가 Corbel로 지정된 것처럼 보이고,
+    # 한글 폰트 미설치 환경에서 대체 글꼴로 렌더링되는 문제가 있다.
+    text = run.text or ""
+    if not re.search(r"[A-Za-z]", text) and re.search(r"[가-힣]", text):
+        latin = east_asia
     rpr = run._r.get_or_add_rPr()
     for tag, name in (("a:latin", latin), ("a:ea", east_asia), ("a:cs", "Tahoma")):
         node = rpr.find(qn(tag))
@@ -210,23 +217,34 @@ def _find_body(slide):
     return next((s for s in slide.shapes if getattr(s, "is_placeholder", False) and s.width > Inches(8)), None)
 
 
-def _estimated_fit_size(text: str, width_in: float, height_in: float, base_pt: float, min_pt: float = 6.0, line_factor: float = 1.25) -> float:
+def _text_units(line: str) -> float:
+    """전각(한글 등) 문자 1.0em, 반각(영문·숫자) 0.55em으로 줄 폭을 추정한다."""
+    return sum(1.0 if ord(ch) > 0x2E80 else 0.55 for ch in line)
+
+
+def _estimated_fit_size(text: str, width_in: float, height_in: float, base_pt: float, min_pt: float = 6.0, line_factor: float = 1.25, wrap: bool = True) -> float:
     """한/영 혼용 텍스트 박스의 보수적 폰트 크기 추정.
 
-    python-pptx에서는 PowerPoint 실제 렌더러를 쓸 수 없으므로 박스 폭으로
-    필요한 줄 수를 추정해 넘칠 때만 폰트를 줄인다.
+    python-pptx에서는 PowerPoint 실제 렌더러를 쓸 수 없으므로 글자 폭 추정으로
+    넘침 여부를 판단해 폰트를 줄인다. wrap=False(줄바꿈 없음)면 가장 긴 줄이
+    박스 폭 안에 들어가는 크기까지 줄인다 — 좌측 사업단명 등이 밖으로
+    튀어나오는 문제를 막는다.
     """
     text = str(text or "")
     if not text.strip() or width_in <= 0 or height_in <= 0:
         return base_pt
+    raw_lines = text.splitlines() or [text]
     size = float(base_pt)
     while size > min_pt:
-        chars_per_line = max(3, int((width_in * 72) / (size * 0.82)))
-        lines = 0
-        for raw_line in text.splitlines() or [text]:
-            lines += max(1, math.ceil(max(1, len(raw_line)) / chars_per_line))
-        required = lines * size * line_factor
-        if required <= height_in * 72 * 0.92:
+        units_per_line = max(2.0, (width_in * 72) / size)
+        if wrap:
+            lines = sum(max(1, math.ceil(_text_units(l) / units_per_line)) for l in raw_lines)
+            fits_width = True
+        else:
+            lines = len(raw_lines)
+            fits_width = all(_text_units(l) <= units_per_line * 0.96 for l in raw_lines)
+        fits_height = lines * size * line_factor <= height_in * 72 * 0.92
+        if fits_width and fits_height:
             break
         size -= 0.5
     return round(max(min_pt, size), 1)
@@ -254,15 +272,23 @@ def _body_fit_scale(items: list[dict[str, Any]], width_in: float, height_in: flo
 def set_text_exact(shape, text: str, cfg: dict[str, Any], vertical=MSO_ANCHOR.MIDDLE) -> None:
     tf = shape.text_frame
     tf.clear()
-    tf.word_wrap = bool(cfg.get("word_wrap", True))
+    wrap = bool(cfg.get("word_wrap", True))
+    base_size = float(cfg.get("font_size", 12))
+    min_size = float(cfg.get("min_font_size", 6))
+    fitted_size = _estimated_fit_size(text, inch(shape.width), inch(shape.height), base_size, min_size, wrap=wrap)
+    # 줄바꿈 없이 맞추려다 글자가 지나치게 작아지면(기준의 70% 미만) 줄바꿈으로 전환한다.
+    # 좌측 '구 분' 라벨처럼 좁고 긴 박스에서 글자가 밖으로 나가거나 깨알같이 작아지는 것을 막는다.
+    if not wrap and fitted_size < base_size * 0.7:
+        wrapped_size = _estimated_fit_size(text, inch(shape.width), inch(shape.height), base_size, min_size, wrap=True)
+        if wrapped_size > fitted_size:
+            wrap, fitted_size = True, wrapped_size
+    tf.word_wrap = wrap
     tf.vertical_anchor = vertical
     p = tf.paragraphs[0]
     p.alignment = {"left": PP_ALIGN.LEFT, "center": PP_ALIGN.CENTER, "right": PP_ALIGN.RIGHT}.get(cfg.get("align"), PP_ALIGN.LEFT)
     r = p.add_run()
     r.text = text
     _font_xml(r, cfg.get("font_latin", "Corbel"), cfg.get("font_ea", "나눔스퀘어"))
-    base_size = float(cfg.get("font_size", 12))
-    fitted_size = _estimated_fit_size(text, inch(shape.width), inch(shape.height), base_size, float(cfg.get("min_font_size", 6)))
     r.font.size = Pt(fitted_size)
     r.font.bold = bool(cfg.get("bold", False))
     r.font.color.rgb = parse_hex(cfg.get("text_color"), "#000000")
@@ -309,7 +335,8 @@ def replace_cell_text(cell, text: str, header: bool, key: bool, cfg: dict[str, A
     p = tf.paragraphs[0]
     _clear_runs(p)
     r = p.add_run(); r.text = text
-    _font_xml(r, cfg.get("font_latin", "Corbel"), "나눔스퀘어 ExtraBold" if (header or key) else cfg.get("font_ea", "나눔스퀘어"))
+    heading_ea = cfg.get("header_font_ea", "나눔스퀘어 ExtraBold")
+    _font_xml(r, cfg.get("font_latin", "Corbel"), heading_ea if (header or key) else cfg.get("font_ea", "나눔스퀘어"))
     base_size = float(cfg.get("header_font_size", 10.5) if header else cfg.get("body_font_size", 10))
     r.font.size = Pt(_estimated_fit_size(text, width_in, height_in, base_size, 6.0, 1.15))
     r.font.bold = bool(header or key)
@@ -340,6 +367,34 @@ def _apply_geometry(shape, cfg: dict[str, Any]) -> None:
     for attr, key in (("left", "x"), ("top", "y"), ("width", "w"), ("height", "h")):
         if key in cfg:
             setattr(shape, attr, Inches(float(cfg[key])))
+
+
+def apply_rule_fonts(profile: dict[str, Any]) -> dict[str, Any]:
+    """config/standard_rules.yaml의 fonts 설정을 프로파일 전체에 반영한다.
+
+    기준을 직접 수정하면(예: 나눔스퀘어 → 맑은 고딕) 생성되는 PPT 폰트가 함께 바뀐다.
+    """
+    from app.services import validator
+
+    fonts = validator.load_rules().get("fonts") or {}
+    latin = fonts.get("latin") or "Corbel"
+    korean = fonts.get("korean") or "나눔스퀘어"
+    heading = fonts.get("heading_korean") or korean
+    for key in ("title", "sidebar"):
+        profile[key]["font_latin"] = latin
+        profile[key]["font_ea"] = heading
+    profile["frame"]["header_font_latin"] = latin
+    profile["frame"]["header_font_ea"] = heading
+    profile["body"]["font_latin"] = latin
+    profile["body"]["font_ea"] = korean
+    profile["body"]["level_ea_fonts"] = [heading, korean, korean, korean, korean]
+    profile["footnote"]["font_latin"] = latin
+    profile["footnote"]["font_ea"] = korean
+    for key in ("table_type1", "table_type3_top", "table_type3_bottom"):
+        profile[key]["font_latin"] = latin
+        profile[key]["font_ea"] = korean
+        profile[key]["header_font_ea"] = heading
+    return profile
 
 
 def deep_merge(base: dict[str, Any], patch: dict[str, Any] | None) -> dict[str, Any]:
@@ -423,12 +478,14 @@ def fill_slide(slide, data: dict[str, Any], slide_no: int, cfg: dict[str, Any]) 
             if s.name.startswith("Down Arrow") or s.name.startswith("Oval"):
                 remove_shape(s)
         x, y, w, h = (float(tl.get(k, v)) for k, v in (("x", 2.70), ("y", 6.25), ("w", 7.65), ("h", .82)))
+        body_latin = cfg["body"].get("font_latin", "Corbel")
+        body_ea = cfg["body"].get("font_ea", "나눔스퀘어")
         line_y = y + h * .58
         line = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(x + .20), Inches(line_y), Inches(w - .22), Inches(.055))
         line.fill.solid(); line.fill.fore_color.rgb = RGBColor(191, 191, 191); line.line.fill.background()
         arrow = slide.shapes.add_shape(MSO_SHAPE.ISOSCELES_TRIANGLE, Inches(x + w - .12), Inches(line_y - .055), Inches(.16), Inches(.16))
         arrow.rotation = 90; arrow.fill.solid(); arrow.fill.fore_color.rgb = RGBColor(191, 191, 191); arrow.line.fill.background()
-        title_cfg = {"font_latin": "Corbel", "font_ea": "나눔스퀘어", "font_size": tl.get("title", {}).get("font_size", 10), "bold": False, "text_color": "#000000", "fill": "transparent", "align": "left"}
+        title_cfg = {"font_latin": body_latin, "font_ea": body_ea, "font_size": tl.get("title", {}).get("font_size", 10), "bold": False, "text_color": "#000000", "fill": "transparent", "align": "left"}
         box = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(2.2), Inches(.25))
         set_text_exact(box, "Project 진행 일정(案)", title_cfg)
         for i, (date, note) in enumerate(zip(data.get("timeline", []), data.get("timeline_note", []))):
@@ -440,19 +497,19 @@ def fill_slide(slide, data: dict[str, Any], slide_no: int, cfg: dict[str, Any]) 
             dot.fill.solid(); dot.fill.fore_color.rgb = WHITE; dot.line.color.rgb = RGBColor(127, 127, 127); dot.line.width = Pt(2)
             if str(date).strip():
                 dbox = slide.shapes.add_textbox(Inches(center - .42), Inches(y + h * .28), Inches(.84), Inches(.20))
-                set_text_exact(dbox, date, {"font_latin": "Corbel", "font_ea": "나눔스퀘어", "font_size": tl.get("date_font_size", 9), "bold": False, "text_color": "#000000", "fill": "transparent", "align": "center"})
+                set_text_exact(dbox, date, {"font_latin": body_latin, "font_ea": body_ea, "font_size": tl.get("date_font_size", 9), "bold": False, "text_color": "#000000", "fill": "transparent", "align": "center"})
             if str(note).strip():
                 nbox = slide.shapes.add_textbox(Inches(center - .48), Inches(y + h * .72), Inches(.96), Inches(.20))
-                set_text_exact(nbox, note, {"font_latin": "Corbel", "font_ea": "나눔스퀘어", "font_size": tl.get("note_font_size", 8), "bold": False, "text_color": "#000000", "fill": "transparent", "align": "center"})
+                set_text_exact(nbox, note, {"font_latin": body_latin, "font_ea": body_ea, "font_size": tl.get("note_font_size", 8), "bold": False, "text_color": "#000000", "fill": "transparent", "align": "center"})
 
-    # 표 캡션 【 표 】 정규화 — 스펙 3-4: Corbel 11pt Bold.
+    # 표 캡션 【 표 】 정규화 — 스펙 3-4: 11pt Bold.
     for s in slide.shapes:
         if getattr(s, "has_text_frame", False):
             txt = s.text.strip()
             if txt.startswith("【") and txt.endswith("】"):
                 for p in s.text_frame.paragraphs:
                     for r in p.runs:
-                        _font_xml(r, "Corbel", "나눔스퀘어")
+                        _font_xml(r, cfg["body"].get("font_latin", "Corbel"), cfg["body"].get("font_ea", "나눔스퀘어"))
                         r.font.size = Pt(11)
                         r.font.bold = True
 
@@ -487,7 +544,7 @@ def generate_report(template_path: Path, unit: dict[str, Any], slides_data: list
         clone_slide(prs, source_type - 1)
     for _ in range(source_count):
         _remove_slide_at(prs, 0)
-    profile = exact_template_profile(template_path)
+    profile = apply_rule_fonts(exact_template_profile(template_path))
     global_cfg = effective_layout(profile, overrides, 0)
     apply_layout_base(prs, global_cfg)
     for i, data in enumerate(slides_data, 1):

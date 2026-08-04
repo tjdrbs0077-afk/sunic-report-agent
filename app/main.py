@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import config
-from app.routers import chat, generate, layout, reports, rules
+from app.routers import chat, generate, layout, news, reports, rules
 
 VERSION = "0.5.0"
 
@@ -16,7 +16,7 @@ app = FastAPI(title="사내 보고서 취합·편집 에이전트", version=VERS
 app.mount("/static", StaticFiles(directory=config.STATIC), name="static")
 app.mount("/generated", StaticFiles(directory=config.GENERATED), name="generated")
 
-for module in (reports, generate, layout, chat, rules):
+for module in (reports, generate, layout, chat, rules, news):
     app.include_router(module.router)
 
 
@@ -38,7 +38,14 @@ def index():
 
 @app.get("/health")
 def health():
-    return {"ok": True, "version": VERSION, "template_exists": config.TEMPLATE.exists(), "port": int(os.environ.get("PORT", "8020"))}
+    template = config.active_template()
+    return {
+        "ok": True,
+        "version": VERSION,
+        "template": template.name,
+        "template_exists": template.exists(),
+        "port": int(os.environ.get("PORT", "8020")),
+    }
 
 
 if __name__ == "__main__":

@@ -188,6 +188,10 @@ def validate_pptx(path: Path) -> dict[str, Any]:
                                 f"본문 {pt:g}pt → {expected:g}pt 통일 필요",
                                 f"슬라이드 {slide_no}의 {level + 1}단계 문단")
 
+    return summarize(issues)
+
+
+def summarize(issues: list[dict[str, Any]]) -> dict[str, Any]:
     counts: dict[str, int] = {}
     for issue in issues:
         counts[issue["category"]] = counts.get(issue["category"], 0) + 1
@@ -196,3 +200,198 @@ def validate_pptx(path: Path) -> dict[str, Any]:
         for category, count in sorted(counts.items(), key=lambda kv: -kv[1])
     ]
     return {"total": len(issues), "by_category": by_category, "issues": issues}
+
+
+# ── 규칙 파일 저장 · PPTX에서 규칙 추출 ─────────────────────────
+
+RULE_ORDER = ["canvas", "fonts", "title", "body_levels", "table", "frame", "footnote", "continuation", "cleanup"]
+
+
+def save_rules(rules: dict[str, Any]) -> dict[str, Any]:
+    """규칙을 yaml로 저장한다. 키 순서를 고정해 사람이 읽기 좋게 유지."""
+    ordered = {k: rules[k] for k in RULE_ORDER if k in rules}
+    ordered.update({k: v for k, v in rules.items() if k not in ordered})
+    config.RULES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    config.RULES_FILE.write_text(
+        yaml.safe_dump(ordered, allow_unicode=True, sort_keys=False, default_flow_style=False),
+        encoding="utf-8",
+    )
+    return ordered
+
+
+def derive_rules_from_pptx(path: Path) -> dict[str, Any]:
+    """기준 양식 PPTX에서 규칙 값을 실측해 standard_rules.yaml 내용을 만든다.
+
+    YAML을 손으로 고치는 대신 새 양식 PPTX를 올리면 기준이 갱신된다.
+    """
+    from app.services.builder import exact_template_profile
+
+    profile = exact_template_profile(path)
+    base = load_rules()
+    hierarchy = profile.get("resolved_hierarchy") or []
+    body_sizes = profile["body"].get("level_sizes", [14, 13, 12, 11, 10])
+    body_bold = profile["body"].get("level_bold", [True, True, False, False, False])
+    default_bullets = ["auto:1.", "auto:1)", "wingdings:❑", "arial:–", "arial:•"]
+
+    levels: list[dict[str, Any]] = []
+    for i in range(5):
+        node = hierarchy[i] if i < len(hierarchy) else {}
+        bullet = node.get("bullet") or ""
+        if bullet == "arabicPeriod":
+            bullet_label = "auto:1."
+        elif bullet == "arabicParenR":
+            bullet_label = "auto:1)"
+        elif bullet in ("", "none"):
+            bullet_label = default_bullets[i]
+        else:
+            bullet_label = f"char:{bullet}"
+        levels.append({
+            "level": i + 1,
+            "size": float(node.get("size_pt") or body_sizes[min(i, len(body_sizes) - 1)]),
+            "bold": bool(body_bold[min(i, len(body_bold) - 1)]),
+            "marL": int(round(float(node.get("margin_left_in", 0)) * 914400)),
+            "indent": int(round(float(node.get("indent_in", 0)) * 914400)),
+            "bullet": bullet_label,
+        })
+
+    fonts = dict(base.get("fonts") or {})
+    fonts.setdefault("latin", profile["body"].get("font_latin", "Corbel"))
+    fonts.setdefault("korean", profile["body"].get("font_ea", "나눔스퀘어"))
+    fonts.setdefault("heading_korean", profile["title"].get("font_ea", "나눔스퀘어 ExtraBold"))
+    # 새 양식이 다른 글꼴을 쓰면 그 값을 따른다.
+    fonts["latin"] = profile["body"].get("font_latin", fonts["latin"])
+    fonts["korean"] = profile["body"].get("font_ea", fonts["korean"])
+    fonts["heading_korean"] = profile["title"].get("font_ea", fonts["heading_korean"])
+
+    table = profile["table_type1"]
+    derived = {
+        "canvas": {"width_in": profile["canvas"]["width"], "height_in": profile["canvas"]["height"]},
+        "fonts": fonts,
+        "title": {
+            "font_size": float(profile["title"].get("font_size", 24)),
+            "bold": bool(profile["title"].get("bold", True)),
+            "x": float(profile["title"].get("x", 0)),
+            "y": float(profile["title"].get("y", 0)),
+        },
+        "body_levels": levels,
+        "table": {
+            "x_in": float(table.get("x", 2.89757)),
+            "width_in": float(table.get("w", 7.519097)),
+            "caption_offset_in": float((base.get("table") or {}).get("caption_offset_in", -0.367)),
+            "header_fill": table.get("header_fill", "#DCE6F2"),
+            "header_font_size": float(table.get("header_font_size", 10.5)),
+            "body_font_size": float(table.get("body_font_size", 10)),
+            "first_col_fill": (base.get("table") or {}).get("first_col_fill", "#E8E8E8"),
+            "gridline": (base.get("table") or {}).get("gridline", {"width_pt": 0.75, "color": "#BFBFBF"}),
+        },
+        "frame": {
+            "header_fill": profile["frame"].get("header_fill", "#B7D3EE"),
+            "border_color": profile["frame"].get("border_color", "#7F7F7F"),
+            "header_font_size": float(profile["frame"].get("header_font_size", 14)),
+        },
+        "footnote": {"font_size": float(profile["footnote"].get("font_size", 8))},
+        "continuation": base.get("continuation") or {
+            "rule": "동일 대주제가 다음 장으로 이어지면 Lv1 제목 색을 #FFFFFF 로 바꿔 숨긴다"
+        },
+        "cleanup": base.get("cleanup") or {"remove_empty_textbox": True, "collapse_spaces": True},
+        "source": {"file": path.name, "extracted": True},
+    }
+    return derived
+
+
+# ── 추출된 슬라이드 데이터 검사 · 자동 수정 (페이지 편집용) ──────
+
+def _level_sizes(rules: dict[str, Any]) -> list[float]:
+    levels = rules.get("body_levels") or []
+    sizes = [float(x.get("size", s)) for x, s in zip(levels, [14, 13, 12, 11, 10])]
+    return sizes or [14, 13, 12, 11, 10]
+
+
+def validate_slides(payload: dict[str, Any]) -> dict[str, Any]:
+    """추출된 슬라이드 데이터(편집 대상)를 검사한다.
+
+    validate_pptx가 '업로드 원본'을 보는 것과 달리, 이쪽은 편집기에서 실제로
+    고칠 수 있는 항목만 본다.
+    """
+    rules = load_rules()
+    cleanup = rules.get("cleanup") or {}
+    max_level = len(_level_sizes(rules)) - 1
+    issues: list[dict[str, Any]] = []
+
+    def add(category: str, slide_no: int, message: str, detail: str, field: str, index: int | None = None) -> None:
+        issues.append({
+            "category": category,
+            "severity": CATEGORY_SEVERITY[category],
+            "slide_no": slide_no,
+            "message": message,
+            "detail": detail,
+            "auto_fixable": True,
+            "field": field,
+            "index": index,
+        })
+
+    for slide in payload.get("slides", []):
+        no = slide["slide_number"]
+        for i, item in enumerate(slide.get("body", [])):
+            text = str(item.get("text", ""))
+            stripped = text.strip()
+            if stripped and stripped[0] in BAD_BULLET_CHARS:
+                add("글머리 기호", no, f"'{stripped[0]}' → 표준 글머리로 교체",
+                    f"{i + 1}번째 문단 “{stripped[:24]}”", "body", i)
+            if cleanup.get("collapse_spaces", True) and re.search(r"  +", text):
+                add("정리", no, "연속 공백 → 1칸으로 축소", f"{i + 1}번째 문단", "body", i)
+            if int(item.get("level", 0)) > max_level:
+                add("들여쓰기", no, f"{int(item['level']) + 1}단계 → {max_level + 1}단계로 정리",
+                    f"{i + 1}번째 문단", "body", i)
+            if not stripped:
+                add("정리", no, "빈 문단 제거", f"{i + 1}번째 문단", "body", i)
+        title = str(slide.get("page_title", ""))
+        if title.strip() and title.strip()[0] in BAD_BULLET_CHARS:
+            add("글머리 기호", no, f"제목의 '{title.strip()[0]}' 기호 제거", "페이지 제목", "page_title", None)
+        if cleanup.get("collapse_spaces", True) and re.search(r"  +", title):
+            add("정리", no, "제목의 연속 공백 축소", "페이지 제목", "page_title", None)
+
+    return summarize(issues)
+
+
+def autofix_slides(payload: dict[str, Any], slide_no: int | None = None) -> int:
+    """추출 데이터에 자동 수정을 적용하고 고친 건수를 돌려준다."""
+    rules = load_rules()
+    cleanup = rules.get("cleanup") or {}
+    collapse = cleanup.get("collapse_spaces", True)
+    max_level = len(_level_sizes(rules)) - 1
+    fixed = 0
+
+    def clean(text: str) -> tuple[str, int]:
+        n = 0
+        out = str(text)
+        stripped = out.strip()
+        if stripped and stripped[0] in BAD_BULLET_CHARS:
+            out = stripped[1:].strip()
+            n += 1
+        if collapse and re.search(r"  +", out):
+            out = re.sub(r" {2,}", " ", out).strip()
+            n += 1
+        return out, n
+
+    for slide in payload.get("slides", []):
+        if slide_no is not None and slide["slide_number"] != slide_no:
+            continue
+        title, n = clean(slide.get("page_title", ""))
+        slide["page_title"] = title
+        fixed += n
+        body = []
+        for item in slide.get("body", []):
+            text, n = clean(item.get("text", ""))
+            fixed += n
+            if not text.strip():
+                fixed += 1
+                continue
+            level = int(item.get("level", 0))
+            if level > max_level:
+                level = max_level
+                fixed += 1
+            body.append({"text": text, "level": level, "bold": item.get("bold")})
+        if body:
+            slide["body"] = body
+    return fixed

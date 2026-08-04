@@ -10,6 +10,20 @@ var API = {
       body: JSON.stringify(body || {})
     }).then(API._json);
   },
+  put: function(url, body){
+    return fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    }).then(API._json);
+  },
+  patch: function(url, body){
+    return fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    }).then(API._json);
+  },
   del: function(url){
     return fetch(url, { method: 'DELETE' }).then(API._json);
   },

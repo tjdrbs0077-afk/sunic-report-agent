@@ -9,12 +9,24 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
+from pydantic import BaseModel
 
 from app import config
 from app.services import store, validator
 from app.services.ingest import extract_presentation, safe_stem
 
 router = APIRouter(prefix="/api", tags=["reports"])
+
+
+class SlidePatch(BaseModel):
+    page_title: str | None = None
+    sidebar: str | None = None
+    footnote: str | None = None
+    body: list[dict[str, Any]] | None = None
+    table1: dict[str, Any] | None = None
+    table2: dict[str, Any] | None = None
+    timeline: list[str] | None = None
+    timeline_note: list[str] | None = None
 
 
 @router.get("/reports")
@@ -78,9 +90,56 @@ def delete_report(report_id: str):
 
 @router.get("/reports/{report_id}/rules")
 def report_rules(report_id: str) -> dict[str, Any]:
-    """업로드 시 수행한 양식 검증 결과."""
+    """업로드 시 수행한 양식 검증 결과(업로드 원본 기준)."""
     payload = store.report_payload(report_id)
     return payload.get("validation", {"total": 0, "by_category": [], "issues": []})
+
+
+@router.get("/reports/{report_id}/issues")
+def report_issues(report_id: str) -> dict[str, Any]:
+    """편집기에서 실제로 고칠 수 있는 위반 목록(추출 데이터 기준)."""
+    return validator.validate_slides(store.report_payload(report_id))
+
+
+@router.patch("/reports/{report_id}/slides/{slide_no}")
+def patch_slide(report_id: str, slide_no: int, patch: SlidePatch):
+    """슬라이드의 제목·본문·표 등 내용을 수정한다 (페이지 편집기의 텍스트 편집)."""
+    payload = store.report_payload(report_id)
+    slides = payload["slides"]
+    target = next((s for s in slides if s["slide_number"] == slide_no), None)
+    if target is None:
+        raise HTTPException(404, f"{slide_no}페이지를 찾을 수 없습니다.")
+    changes = patch.model_dump(exclude_none=True)
+    if not changes:
+        raise HTTPException(400, "수정할 내용이 없습니다.")
+    if "body" in changes:
+        cleaned = []
+        for item in changes["body"]:
+            text = str(item.get("text", "")).strip()
+            if not text:
+                continue
+            cleaned.append({
+                "text": text,
+                "level": max(0, min(4, int(item.get("level", 0) or 0))),
+                "bold": item.get("bold"),
+            })
+        if not cleaned:
+            raise HTTPException(400, "본문은 최소 한 줄이 있어야 합니다.")
+        changes["body"] = cleaned
+    target.update(changes)
+    target["edited"] = True
+    store.save_report_payload(report_id, payload)
+    return {"ok": True, "slide": target}
+
+
+@router.post("/reports/{report_id}/autofix")
+def autofix(report_id: str, slide_no: int | None = None):
+    """자동 수정 가능한 위반을 일괄 적용한다. slide_no를 주면 해당 페이지만."""
+    payload = store.report_payload(report_id)
+    fixed = validator.autofix_slides(payload, slide_no)
+    if fixed:
+        store.save_report_payload(report_id, payload)
+    return {"ok": True, "fixed": fixed, "issues": validator.validate_slides(payload)}
 
 
 @router.get("/stats")

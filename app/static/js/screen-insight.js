@@ -1,24 +1,112 @@
-/* ⑥ 동향 인사이트 — SUNIC_Demo_index.html의 더미 데이터를 그대로 유지한다. */
+/* ⑥ 동향 인사이트 — 보고서 키워드로 실제 뉴스 기사를 검색한다.
+   관계 그래프는 아직 더미 데이터(LLM 엔티티 추출 연동 예정). */
+Screens.s6 = (function(){
+  var reports = [];
+  var loadedOnce = false;
 
-/* ───────── 기사 목록 ───────── */
-var ARTS = [
-  ['news','도요타, 2027년 전고체 배터리 탑재 차량 양산 계획 재확인','닛케이 · 7/26', 0.94],
-  ['pat','황화물계 고체 전해질의 대기 안정성 개선 조성물 (KR 출원)','특허청 · 7/21', 0.91],
-  ['news','삼성SDI, 전고체 파일럿 "S라인" 샘플 고객사 평가 착수','전자신문 · 7/24', 0.89],
-  ['news','QuantumScape, 리튬메탈 분리막 수율 개선 발표… 주가 급등','로이터 · 7/22', 0.84],
-  ['pat','건식 전극 제조용 바인더 섬유화 공정 (US 등록)','USPTO · 7/15', 0.81],
-  ['news','LG에너지솔루션, 건식 전극 공정 2028년 상용화 목표','한국경제 · 7/18', 0.78]
-];
-var al = document.getElementById('artList');
-ARTS.forEach(function(a){
-  al.insertAdjacentHTML('beforeend',
-    '<div class="art"><div class="t">' + a[1] + '</div>' +
-    '<div class="m"><span class="pill ' + a[0] + '">' + (a[0] === 'news' ? '뉴스' : '특허') + '</span>' +
-    '<span>' + a[2] + '</span>' +
-    '<span class="rel"><span class="relbar"><i style="width:' + (a[3]*100) + '%"></i></span>관련도 ' + a[3].toFixed(2) + '</span></div></div>');
-});
+  function $id(x){ return document.getElementById(x); }
 
-/* ───────── 관계 그래프 (SVG) ───────── */
+  function renderArticles(items, note){
+    var box = $id('artList');
+    if(!items.length){
+      box.innerHTML = '<div class="note">' + esc(note || '검색 결과가 없습니다.') + '</div>';
+      return;
+    }
+    box.innerHTML = items.map(function(a){
+      var link = a.link
+        ? '<a href="' + esc(a.link) + '" target="_blank" rel="noopener noreferrer" style="color:inherit; text-decoration:none;">' + esc(a.title) + '</a>'
+        : esc(a.title);
+      return '<div class="art"><div class="t">' + link + '</div>' +
+        '<div class="m"><span class="pill news">뉴스</span>' +
+        '<span>' + esc(a.source) + (a.date ? ' · ' + esc(a.date) : '') + '</span>' +
+        (a.keyword ? '<span style="color:var(--accent-deep); font-weight:600;">' + esc(a.keyword) + '</span>' : '') +
+        '<span class="rel"><span class="relbar"><i style="width:' + Math.round(a.score * 100) + '%"></i></span>관련도 ' + a.score.toFixed(2) + '</span>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  function renderKeywords(list){
+    var box = $id('insKeywords');
+    if(!list || !list.length){
+      box.innerHTML = '<span style="font-size:12.5px; color:var(--text-muted);">추출된 키워드가 없습니다.</span>';
+      return;
+    }
+    box.innerHTML = list.map(function(k){
+      return '<span class="kw" data-kw="' + esc(k.keyword) + '" style="cursor:pointer;"><b>' + esc(k.keyword) + '</b>' +
+        '<span class="n">기사 ' + k.count + '</span></span>';
+    }).join('');
+    box.querySelectorAll('[data-kw]').forEach(function(el){
+      el.onclick = function(){
+        $id('insQuery').value = el.dataset.kw;
+        searchDirect(el.dataset.kw);
+      };
+    });
+  }
+
+  function loading(msg){
+    $id('artList').innerHTML = '<div class="note">' + esc(msg) + '</div>';
+  }
+
+  function loadForReport(id){
+    if(!id) return;
+    loading('보고서 키워드로 뉴스를 검색하는 중…');
+    $id('insArtSub').textContent = '관련도순 정렬';
+    API.get('/api/reports/' + id + '/news?limit=12').then(function(d){
+      renderKeywords(d.keywords);
+      renderArticles(d.items, d.reason || '관련 기사를 찾지 못했습니다.');
+      $id('insKwSub').textContent = (d.unit || '') + ' 보고서에서 자동 추출 · 클릭하면 해당 키워드로 검색';
+    }).catch(function(e){
+      renderArticles([], '뉴스를 불러오지 못했습니다: ' + e.message);
+    });
+  }
+
+  function searchDirect(q){
+    q = (q || $id('insQuery').value || '').trim();
+    if(!q) return;
+    loading('‘' + q + '’ 검색 중…');
+    $id('insArtSub').textContent = '‘' + q + '’ 검색 결과';
+    API.get('/api/news?q=' + encodeURIComponent(q) + '&limit=12').then(function(d){
+      renderArticles(d.items, d.reason || '검색 결과가 없습니다.');
+    }).catch(function(e){
+      renderArticles([], '검색 실패: ' + e.message);
+    });
+  }
+
+  var bound = false;
+  function bind(){
+    if(bound) return; bound = true;
+    $id('insSearchBtn').onclick = function(){ searchDirect(); };
+    $id('insQuery').addEventListener('keydown', function(e){ if(e.key === 'Enter') searchDirect(); });
+    $id('insReportSel').onchange = function(){ loadForReport(this.value); };
+  }
+
+  return {
+    load: function(){
+      bind();
+      var sel = $id('insReportSel');
+      var keep = sel.value;
+      API.get('/api/reports').then(function(r){
+        reports = r;
+        sel.innerHTML = reports.map(function(x){
+          return '<option value="' + x.id + '">' + esc(x.name) + '</option>';
+        }).join('');
+        if(!reports.length){
+          renderKeywords([]);
+          renderArticles([], '업로드된 보고서가 없습니다. 위 검색창에 키워드를 직접 입력해 검색할 수 있습니다.');
+          return;
+        }
+        if(keep && reports.some(function(x){ return x.id === keep; })){
+          sel.value = keep;
+          if(loadedOnce) return;
+        }
+        loadedOnce = true;
+        loadForReport(sel.value);
+      });
+    }
+  };
+})();
+
+/* ───────── 관계 그래프 (SVG) — 더미 데이터 유지 ───────── */
 var NODES = [
   {id:'us',  x:260, y:180, r:34, c:'#ea002c', t:'우리 사업',      d:'배터리소재사업단 기획안'},
   {id:'ssdi',x:95,  y:75,  r:24, c:'#f47725', t:'삼성SDI',        d:'전고체 파일럿 S라인 운영'},
@@ -81,5 +169,3 @@ NODES.forEach(function(n){
   });
   svg.appendChild(g);
 });
-
-Screens.s6 = { load: function(){} };

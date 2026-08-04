@@ -111,10 +111,12 @@
     <div class="grid g32" style="margin-bottom:14px;">
       <div class="card">
         <h3>보고서별 제출 · 처리 현황</h3>
-        <table>
-          <thead><tr><th>보고서</th><th>제출</th><th>처리 상태</th><th class="num">오류</th><th class="num">제출 시각</th></tr></thead>
-          <tbody id="dashTable"></tbody>
-        </table>
+        <div class="scroll-x">
+          <table style="min-width:460px;">
+            <thead><tr><th>보고서</th><th>제출</th><th>처리 상태</th><th class="num">오류</th><th class="num">제출 시각</th></tr></thead>
+            <tbody id="dashTable"></tbody>
+          </table>
+        </div>
         <div id="dashEmpty" style="display:none;">
           <div class="note">업로드된 보고서가 없습니다.</div>
           <div style="margin-top:12px;"><button class="btn ghost" onclick="goTo('s2')">업로드 화면으로 이동</button></div>
@@ -165,9 +167,17 @@
         <div class="filelist" id="fileList"></div>
       </div>
       <div class="card">
-        <h3>적용 중인 양식 기준 <span class="sub">standard_rules.yaml</span></h3>
+        <h3>적용 중인 양식 기준 <span class="sub" id="ruleSource">standard_rules.yaml</span></h3>
         <ul class="rulelist" id="ruleList"></ul>
-        <div class="note">기준은 config/standard_rules.yaml 규칙 파일로 정의합니다. 값은 보고양식_Sample_4팀.pptx 실측 스펙입니다.</div>
+        <div id="ruleEditor" style="display:none;"></div>
+        <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
+          <button class="btn ghost" id="ruleEditBtn">기준 직접 수정</button>
+          <button class="btn ghost" id="ruleTplBtn">양식 PPTX로 교체</button>
+          <button class="btn ghost" id="ruleResetBtn">기본값 복원</button>
+          <input type="file" id="ruleTplInput" accept=".pptx" style="display:none;">
+        </div>
+        <div class="prog-label" id="ruleStatus" style="margin-top:10px;"></div>
+        <div class="note">기준을 바꾸면 이후 양식 검사와 PPT 생성에 바로 반영됩니다. 새 양식 PPTX를 올리면 글꼴·크기·표 규격을 자동으로 실측해 기준을 갱신합니다.</div>
       </div>
     </div>
 
@@ -257,6 +267,13 @@
         <h3>편집 캔버스 <span class="sub" id="edPageInfo"></span></h3>
         <div class="ed-canvas" id="edCanvas"></div>
         <div class="prog-label" id="edStatus" style="margin-top:10px;"></div>
+
+        <h3 style="margin-top:20px;">이 페이지 양식 오류 <span class="sub" id="edIssueCount"></span></h3>
+        <ul class="fixlist" id="edIssueList"></ul>
+        <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+          <button class="btn ghost" id="edFixPageBtn">이 페이지 자동 수정</button>
+          <button class="btn ghost" id="edFixAllBtn">전체 자동 수정</button>
+        </div>
       </div>
       <div class="card" style="padding:18px 16px;">
         <h3>개체 속성 <span class="sub" id="edSelLabel"></span></h3>
@@ -291,6 +308,9 @@
           <button class="btn ghost" id="edResetPageBtn">현재 페이지 초기화</button>
           <button class="btn ghost" id="edResetAllBtn">전체 초기화</button>
         </div>
+
+        <h3 style="margin-top:22px;">내용 편집 <span class="sub" id="edTextLabel"></span></h3>
+        <div id="edTextPanel"></div>
       </div>
     </div>
   </section>
@@ -337,27 +357,27 @@
         <h1>동향 인사이트</h1>
         <p>보고서에서 추출한 키워드로 뉴스·특허를 하이브리드 검색(BM25 + 임베딩)해 미리 수집한 결과입니다</p>
       </div>
-      <span class="demo-badge">DEMO · 더미 데이터 (연동 예정)</span>
+      <span class="demo-badge">뉴스 실시간 검색 · 그래프는 더미</span>
     </div>
 
     <div class="card" style="margin-bottom:14px;">
-      <h3>추출 키워드 <span class="sub">배터리소재사업단 보고서 기준 · n8n이 6시간마다 사전 수집</span></h3>
-      <div>
-        <span class="kw"><b>전고체 배터리</b><span class="n">기사 14</span></span>
-        <span class="kw"><b>황화물 전해질</b><span class="n">기사 8 · 특허 5</span></span>
-        <span class="kw"><b>리튬메탈 음극</b><span class="n">기사 6</span></span>
-        <span class="kw"><b>건식 전극 공정</b><span class="n">기사 4 · 특허 3</span></span>
-        <span class="kw"><b>파일럿 라인</b><span class="n">기사 3</span></span>
+      <h3>추출 키워드 <span class="sub" id="insKwSub">보고서에서 자동 추출 · 클릭하면 해당 키워드로 검색</span></h3>
+      <div class="selrow" style="margin-bottom:12px;">
+        <select id="insReportSel"></select>
+        <input id="insQuery" placeholder="직접 검색: 예) 전고체 배터리"
+          style="flex:1; min-width:180px; font:inherit; font-size:13px; padding:9px 14px; border:1px solid var(--baseline); border-radius:11px; background:#fff; color:var(--text-primary); box-shadow:var(--shadow-sm);">
+        <button class="btn primary" id="insSearchBtn">검색</button>
       </div>
+      <div id="insKeywords"></div>
     </div>
 
     <div class="grid g2">
       <div class="card">
-        <h3>관련 기사 · 특허 <span class="sub">관련도순 정렬 (리랭커 적용)</span></h3>
+        <h3>관련 기사 <span class="sub" id="insArtSub">관련도순 정렬</span></h3>
         <div id="artList"></div>
       </div>
       <div class="card">
-        <h3>기업 – 기술 관계 그래프 <span class="sub">LLM 엔티티 추출</span></h3>
+        <h3>기업 – 기술 관계 그래프 <span class="sub">더미 데이터 · LLM 엔티티 추출 연동 예정</span></h3>
         <svg id="graph" viewBox="0 0 520 360" width="100%" role="img" aria-label="기업과 기술의 관계 그래프"></svg>
         <div class="legend-inline">
           <span><i class="lg-dot" style="background:#ea002c"></i>우리 사업</span>
