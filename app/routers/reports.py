@@ -1,6 +1,7 @@
 """보고서 업로드·목록·상세·삭제 + 양식 검증 결과 + 대시보드 집계."""
 from __future__ import annotations
 
+import copy
 import shutil
 import time
 from datetime import datetime
@@ -59,6 +60,8 @@ async def upload_ppts(files: list[UploadFile] = File(...)):
             payload = extract_presentation(target, report_id=report_id, display_name=safe_stem(filename))
             payload["unit"]["source_file"] = filename
             payload["validation"] = validator.validate_pptx(target)
+            # 원문 스냅샷 — 페이지 편집의 '원문 복원' 기준
+            payload["original_slides"] = copy.deepcopy(payload["slides"])
             payload["uploaded_at"] = datetime.now().isoformat(timespec="seconds")
             payload["processing_seconds"] = round(time.perf_counter() - started, 2)
             store.save_report_payload(report_id, payload)
@@ -132,6 +135,29 @@ def patch_slide(report_id: str, slide_no: int, patch: SlidePatch):
     return {"ok": True, "slide": target}
 
 
+@router.get("/reports/{report_id}/autofix/preview")
+def autofix_preview(report_id: str, slide_no: int | None = None):
+    """자동 수정이 바꿀 내용을 미리 보여준다 (적용하지 않음)."""
+    payload = store.report_payload(report_id)
+    changes = validator.preview_autofix(payload, slide_no)
+    return {"ok": True, "changes": changes, "count": len(changes)}
+
+
+class SlidesReplace(BaseModel):
+    slides: list[dict[str, Any]]
+
+
+@router.put("/reports/{report_id}/slides")
+def replace_slides(report_id: str, req: SlidesReplace):
+    """슬라이드 전체를 한 번에 교체한다 (편집기의 Ctrl+Z 되돌리기용)."""
+    payload = store.report_payload(report_id)
+    if len(req.slides) != len(payload["slides"]):
+        raise HTTPException(400, "슬라이드 수가 맞지 않습니다.")
+    payload["slides"] = req.slides
+    store.save_report_payload(report_id, payload)
+    return {"ok": True, "issues": validator.validate_slides(payload)}
+
+
 @router.post("/reports/{report_id}/autofix")
 def autofix(report_id: str, slide_no: int | None = None):
     """자동 수정 가능한 위반을 일괄 적용한다. slide_no를 주면 해당 페이지만."""
@@ -140,6 +166,37 @@ def autofix(report_id: str, slide_no: int | None = None):
     if fixed:
         store.save_report_payload(report_id, payload)
     return {"ok": True, "fixed": fixed, "issues": validator.validate_slides(payload)}
+
+
+@router.post("/reports/{report_id}/restore")
+def restore(report_id: str, slide_no: int | None = None):
+    """업로드 직후의 원문으로 내용을 되돌린다. 레이아웃 편집값은 그대로 둔다."""
+    payload = store.report_payload(report_id)
+    original = payload.get("original_slides")
+    if not original:
+        raise HTTPException(400, "이 보고서에는 원문 스냅샷이 없습니다. 다시 업로드하면 복원 기능을 쓸 수 있습니다.")
+    originals = {s["slide_number"]: s for s in original}
+    restored = 0
+    for i, slide in enumerate(payload["slides"]):
+        no = slide["slide_number"]
+        if slide_no is not None and no != slide_no:
+            continue
+        source = originals.get(no)
+        if source is None:
+            continue
+        import copy
+
+        if slide != source:
+            payload["slides"][i] = copy.deepcopy(source)
+            restored += 1
+    if restored:
+        store.save_report_payload(report_id, payload)
+    return {
+        "ok": True,
+        "restored": restored,
+        "issues": validator.validate_slides(payload),
+        "slides": payload["slides"],
+    }
 
 
 @router.get("/stats")

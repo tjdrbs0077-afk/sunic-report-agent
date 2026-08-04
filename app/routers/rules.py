@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +48,72 @@ def update_rules(req: RulesSaveRequest):
     saved = validator.save_rules(req.rules)
     config.PROFILE_CACHE.unlink(missing_ok=True)
     return {"ok": True, "rules": saved}
+
+
+LATIN_OPTIONS = ["Corbel", "Arial", "Calibri", "Segoe UI", "Times New Roman", "Tahoma", "Verdana"]
+KOREAN_OPTIONS = ["나눔스퀘어", "나눔스퀘어 ExtraBold", "나눔고딕", "맑은 고딕", "바탕", "굴림", "Pretendard"]
+
+
+def _installed_fonts() -> set[str] | None:
+    """설치된 글꼴 이름. 확인할 수 없는 환경(비 Windows 서버 등)에서는 None."""
+    if sys.platform != "win32":
+        return None
+    try:
+        import winreg
+
+        names: set[str] = set()
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts")
+        count = winreg.QueryInfoKey(key)[1]
+        for i in range(count):
+            name = winreg.EnumValue(key, i)[0]
+            names.add(re.sub(r"\s*\((TrueType|OpenType)\)$", "", name).strip())
+        return names
+    except OSError:
+        return None
+
+
+# 한글 글꼴은 레지스트리에 영문 이름으로 등록돼 있어 별칭으로 함께 찾는다
+FONT_ALIASES = {
+    "맑은 고딕": ["Malgun Gothic"],
+    "나눔고딕": ["NanumGothic"],
+    "나눔스퀘어": ["NanumSquare"],
+    "나눔스퀘어 ExtraBold": ["NanumSquareExtraBold", "NanumSquare ExtraBold"],
+    "바탕": ["Batang"],
+    "굴림": ["Gulim"],
+    "돋움": ["Dotum"],
+}
+
+
+def _is_installed(family: str, installed: set[str]) -> bool:
+    candidates = [family.strip()] + FONT_ALIASES.get(family.strip(), [])
+    lowered = [n.casefold() for n in installed]
+    for candidate in candidates:
+        target = candidate.casefold()
+        if not target:
+            continue
+        for name in lowered:
+            if target == name or target in name or name.startswith(target):
+                return True
+    return False
+
+
+@router.get("/fonts")
+def fonts() -> dict[str, Any]:
+    """글꼴 선택 목록과 이 PC의 설치 여부. 편집기 드롭다운과 안내에 쓴다."""
+    rules_data = validator.load_rules()
+    cfg = rules_data.get("fonts") or {}
+    latin = [x for x in dict.fromkeys([cfg.get("latin", "")] + LATIN_OPTIONS) if x]
+    korean = [x for x in dict.fromkeys([cfg.get("korean", ""), cfg.get("heading_korean", "")] + KOREAN_OPTIONS) if x]
+    installed = _installed_fonts()
+    status: dict[str, bool | None] = {}
+    for family in set(latin + korean):
+        status[family] = _is_installed(family, installed) if installed is not None else None
+    return {
+        "rule": {"latin": cfg.get("latin", ""), "korean": cfg.get("korean", ""), "heading_korean": cfg.get("heading_korean", "")},
+        "options": {"latin": latin, "korean": korean},
+        "installed": status,
+        "checked": installed is not None,
+    }
 
 
 @router.get("/template")

@@ -250,23 +250,53 @@ def _estimated_fit_size(text: str, width_in: float, height_in: float, base_pt: f
     return round(max(min_pt, size), 1)
 
 
+MIN_BODY_SCALE = 0.45
+
+
+def _body_required_pt(items: list[dict[str, Any]], width_in: float, sizes: list[float], scale: float) -> float:
+    """주어진 배율에서 본문이 차지하는 세로 높이(pt)를 추정한다."""
+    required = 0.0
+    for item in items:
+        level = max(0, min(4, int(item.get("level", 0))))
+        size = float(sizes[level]) * scale
+        usable_width = max(0.8, width_in - 0.18 * level)
+        units_per_line = max(4.0, (usable_width * 72) / size)
+        lines = max(1, math.ceil(_text_units(str(item.get("text", ""))) / units_per_line))
+        required += lines * size * 1.32
+    return required
+
+
 def _body_fit_scale(items: list[dict[str, Any]], width_in: float, height_in: float, sizes: list[float]) -> float:
     if not items or width_in <= 0 or height_in <= 0:
         return 1.0
     scale = 1.0
-    while scale > 0.50:
-        required = 0.0
-        for item in items:
-            level = max(0, min(4, int(item.get("level", 0))))
-            size = float(sizes[level]) * scale
-            usable_width = max(0.8, width_in - 0.18 * level)
-            chars_per_line = max(4, int((usable_width * 72) / (size * 0.80)))
-            lines = max(1, math.ceil(len(str(item.get("text", ""))) / chars_per_line))
-            required += lines * size * 1.32
-        if required <= height_in * 72 * 0.94:
+    while scale > MIN_BODY_SCALE:
+        if _body_required_pt(items, width_in, sizes, scale) <= height_in * 72 * 0.94:
             break
         scale -= 0.04
-    return max(0.50, round(scale, 2))
+    return max(MIN_BODY_SCALE, round(scale, 2))
+
+
+def fit_body_items(items: list[dict[str, Any]], width_in: float, height_in: float, sizes: list[float]) -> tuple[list[dict[str, Any]], bool]:
+    """상자 안에 들어갈 만큼만 남긴다. 최소 배율에서도 넘치면 뒤에서부터 덜어낸다.
+
+    표가 있는 페이지에서 본문이 표 위로 흘러 글자가 겹치는 것을 막는다.
+    잘라낸 경우 마지막 항목에 말줄임표를 붙여 잘렸다는 사실을 남긴다.
+    """
+    if not items or width_in <= 0 or height_in <= 0:
+        return items, False
+    limit_pt = height_in * 72 * 0.94
+    kept = list(items)
+    while len(kept) > 1 and _body_required_pt(kept, width_in, sizes, MIN_BODY_SCALE) > limit_pt:
+        kept = kept[:-1]
+    if len(kept) == len(items):
+        return items, False
+    trimmed = [dict(x) for x in kept]
+    last = trimmed[-1]
+    text = str(last.get("text", "")).rstrip()
+    if not text.endswith("…"):
+        last["text"] = text + " …"
+    return trimmed, True
 
 
 def set_text_exact(shape, text: str, cfg: dict[str, Any], vertical=MSO_ANCHOR.MIDDLE) -> None:
@@ -306,6 +336,7 @@ def write_body_exact(shape, items: list[dict[str, Any]], cfg: dict[str, Any]) ->
     tf.word_wrap = True
     # 원본 placeholder의 여백·위계를 유지한다. 정확한 번호/글머리 형식은 레이아웃이 정의한다.
     sizes = [float(x) for x in cfg.get("level_sizes", [14, 13, 12, 11, 10])]
+    items, _ = fit_body_items(items, inch(shape.width), inch(shape.height), sizes)
     scale = _body_fit_scale(items, inch(shape.width), inch(shape.height), sizes)
     fitted_sizes = [max(6.0, round(x * scale, 1)) for x in sizes]
     ea_fonts = cfg.get("level_ea_fonts", ["나눔스퀘어 ExtraBold"] * 3 + ["나눔스퀘어"] * 2)
@@ -438,6 +469,30 @@ def apply_layout_base(prs: Presentation, cfg: dict[str, Any]) -> None:
             r.font.color.rgb = parse_hex(frame.get("header_text_color"), "#000000")
 
 
+# 표 위에 두는 여백 — 표 캡션(【 표 】 0.37in)이 들어갈 자리 + 시각적 여유
+BODY_TABLE_GAP = 0.45
+
+
+def _limit_body_height(body, ptype: int, cfg: dict[str, Any]) -> None:
+    """본문 상자가 표 영역을 덮지 않도록 아래쪽을 잘라낸다.
+
+    원본 양식은 본문 개체 틀이 슬라이드 하단까지 내려와 표와 겹쳐 있다.
+    본문이 길면 글자가 표 위로 흘러 겹치므로, 표가 있는 유형은 표 상단에서 멈추게 한다.
+    """
+    tops: list[float] = []
+    if ptype == 1:
+        tops.append(float(cfg["table_type1"]["y"]))
+    elif ptype == 3:
+        tops.append(float(cfg["table_type3_top"]["y"]))
+    if not tops:
+        return
+    available = min(tops) - BODY_TABLE_GAP - inch(body.top)
+    if available < 0.4:
+        available = 0.4
+    if inch(body.height) > available:
+        body.height = Inches(round(available, 3))
+
+
 def fill_slide(slide, data: dict[str, Any], slide_no: int, cfg: dict[str, Any]) -> None:
     ptype = data["template_type"]
     title = _find_title(slide)
@@ -448,7 +503,9 @@ def fill_slide(slide, data: dict[str, Any], slide_no: int, cfg: dict[str, Any]) 
         _apply_geometry(sidebar, cfg["sidebar"]); set_text_exact(sidebar, data["sidebar"], cfg["sidebar"])
     body = _find_body(slide)
     if body:
-        _apply_geometry(body, cfg["body"]); write_body_exact(body, data["body"], cfg["body"])
+        _apply_geometry(body, cfg["body"])
+        _limit_body_height(body, ptype, cfg)
+        write_body_exact(body, data["body"], cfg["body"])
 
     tables = sorted([s for s in slide.shapes if s.shape_type == MSO_SHAPE_TYPE.TABLE], key=lambda s: s.top)
     if ptype == 1 and tables:

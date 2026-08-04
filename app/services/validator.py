@@ -233,6 +233,8 @@ def derive_rules_from_pptx(path: Path) -> dict[str, Any]:
     body_bold = profile["body"].get("level_bold", [True, True, False, False, False])
     default_bullets = ["auto:1.", "auto:1)", "wingdings:❑", "arial:–", "arial:•"]
 
+    # Wingdings 글머리는 사설영역 코드(U+F0xx)로 저장돼 그대로 두면 화면에서 깨져 보인다.
+    wingdings_map = {"": "wingdings:❑", "": "wingdings:■", "": "wingdings:◆", "": "wingdings:▪"}
     levels: list[dict[str, Any]] = []
     for i in range(5):
         node = hierarchy[i] if i < len(hierarchy) else {}
@@ -243,6 +245,8 @@ def derive_rules_from_pptx(path: Path) -> dict[str, Any]:
             bullet_label = "auto:1)"
         elif bullet in ("", "none"):
             bullet_label = default_bullets[i]
+        elif bullet in wingdings_map:
+            bullet_label = wingdings_map[bullet]
         else:
             bullet_label = f"char:{bullet}"
         levels.append({
@@ -352,6 +356,61 @@ def validate_slides(payload: dict[str, Any]) -> dict[str, Any]:
             add("정리", no, "제목의 연속 공백 축소", "페이지 제목", "page_title", None)
 
     return summarize(issues)
+
+
+def preview_autofix(payload: dict[str, Any], slide_no: int | None = None) -> list[dict[str, Any]]:
+    """자동 수정이 무엇을 어떻게 바꿀지 미리 계산한다 (적용하지 않음).
+
+    화면에서 before/after를 빨강·초록으로 대조해 보여주기 위한 데이터.
+    """
+    import copy
+
+    before = copy.deepcopy(payload)
+    after = copy.deepcopy(payload)
+    autofix_slides(after, slide_no)
+
+    changes: list[dict[str, Any]] = []
+    for src, dst in zip(before.get("slides", []), after.get("slides", [])):
+        no = src["slide_number"]
+        if slide_no is not None and no != slide_no:
+            continue
+        if src.get("page_title") != dst.get("page_title"):
+            changes.append({
+                "slide_no": no, "field": "제목", "index": None,
+                "before": src.get("page_title", ""), "after": dst.get("page_title", ""),
+            })
+        src_body = src.get("body", [])
+        dst_body = dst.get("body", [])
+        dst_texts = [x.get("text", "") for x in dst_body]
+        used = 0
+        for i, item in enumerate(src_body):
+            text = item.get("text", "")
+            level = int(item.get("level", 0))
+            if used < len(dst_body) and _matches(text, dst_texts[used]):
+                new_item = dst_body[used]
+                used += 1
+                if text != new_item.get("text", "") or level != int(new_item.get("level", 0)):
+                    changes.append({
+                        "slide_no": no, "field": f"본문 {i + 1}번째 문단", "index": i,
+                        "before": text, "after": new_item.get("text", ""),
+                        "before_level": level, "after_level": int(new_item.get("level", 0)),
+                    })
+            else:
+                changes.append({
+                    "slide_no": no, "field": f"본문 {i + 1}번째 문단", "index": i,
+                    "before": text, "after": "", "removed": True,
+                })
+    return changes
+
+
+def _matches(before: str, after: str) -> bool:
+    """자동 수정 전후 문단이 같은 문단인지 판단 (기호·공백 정리를 감안)."""
+    a = re.sub(r"\s+", "", before)
+    b = re.sub(r"\s+", "", after)
+    if not b:
+        return False
+    a_clean = a[1:] if a and a[0] in BAD_BULLET_CHARS else a
+    return a_clean == b or a == b or b in a_clean or a_clean in b
 
 
 def autofix_slides(payload: dict[str, Any], slide_no: int | None = None) -> int:

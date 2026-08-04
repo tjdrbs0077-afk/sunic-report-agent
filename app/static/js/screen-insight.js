@@ -1,5 +1,5 @@
-/* ⑥ 동향 인사이트 — 보고서 키워드로 실제 뉴스 기사를 검색한다.
-   관계 그래프는 아직 더미 데이터(LLM 엔티티 추출 연동 예정). */
+/* ⑥ 동향 인사이트 — 보고서 키워드로 실제 뉴스를 수집하고,
+   그 기사에서 기업–기술 관계 그래프를 그린다. 수집 주기는 6시간. */
 Screens.s6 = (function(){
   var reports = [];
   var loadedOnce = false;
@@ -43,17 +43,122 @@ Screens.s6 = (function(){
     });
   }
 
+  function renderFetchInfo(d){
+    var info = $id('insFetchInfo');
+    if(!d.fetched_at){ info.textContent = ''; return; }
+    var when = new Date(d.fetched_at);
+    var mm = String(when.getMinutes()).padStart(2, '0');
+    var stamp = (when.getMonth() + 1) + '/' + when.getDate() + ' ' + when.getHours() + ':' + mm;
+    var age = d.age_minutes == null ? '' :
+      (d.age_minutes < 60 ? d.age_minutes + '분 전' : Math.floor(d.age_minutes / 60) + '시간 전');
+    info.textContent = '마지막 수집: ' + stamp + (age ? ' (' + age + ')' : '') +
+      ' · ' + d.refresh_hours + '시간마다 자동 갱신' + (d.from_cache ? ' · 저장된 결과' : ' · 방금 수집함');
+  }
+
+  /* ── 관계 그래프 (수집한 기사에서 추출) ── */
+  var NS = 'http://www.w3.org/2000/svg';
+  var COLORS = { us: '#ea002c', company: '#f47725', tech: '#1baf7a' };
+
+  function layout(nodes){
+    // 우리 사업을 가운데, 기술은 안쪽 원, 기업은 바깥 원에 배치
+    var cx = 260, cy = 180;
+    var techs = nodes.filter(function(n){ return n.type === 'tech'; });
+    var companies = nodes.filter(function(n){ return n.type === 'company'; });
+    var placed = {};
+    nodes.forEach(function(n){ if(n.type === 'us') placed[n.id] = { x: cx, y: cy }; });
+    techs.forEach(function(n, i){
+      var a = (Math.PI * 2 * i / Math.max(techs.length, 1)) - Math.PI / 2;
+      placed[n.id] = { x: cx + Math.cos(a) * 92, y: cy + Math.sin(a) * 74 };
+    });
+    companies.forEach(function(n, i){
+      var a = (Math.PI * 2 * i / Math.max(companies.length, 1)) - Math.PI / 2 + 0.35;
+      placed[n.id] = { x: cx + Math.cos(a) * 196, y: cy + Math.sin(a) * 130 };
+    });
+    return placed;
+  }
+
+  function renderGraph(graph){
+    var svg = $id('graph');
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    var sub = $id('insGraphSub');
+    if(!graph || !graph.nodes || graph.nodes.length <= 1){
+      sub.textContent = '추출된 관계 없음';
+      var t = document.createElementNS(NS, 'text');
+      t.setAttribute('x', 260); t.setAttribute('y', 180); t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-size', '12'); t.setAttribute('fill', '#898781');
+      t.textContent = '관계를 추출할 기사가 없습니다.';
+      svg.appendChild(t);
+      return;
+    }
+    var companies = graph.nodes.filter(function(n){ return n.type === 'company'; }).length;
+    var techs = graph.nodes.filter(function(n){ return n.type === 'tech'; }).length;
+    sub.textContent = '기업·기관 ' + companies + ' · 기술 ' + techs + ' · 기사에서 추출';
+
+    var pos = layout(graph.nodes);
+    var maxW = Math.max.apply(null, graph.links.map(function(l){ return l.weight || 1; }).concat([1]));
+
+    graph.links.forEach(function(l){
+      var a = pos[l.source], b = pos[l.target];
+      if(!a || !b) return;
+      var ln = document.createElementNS(NS, 'line');
+      ln.setAttribute('x1', a.x); ln.setAttribute('y1', a.y);
+      ln.setAttribute('x2', b.x); ln.setAttribute('y2', b.y);
+      ln.setAttribute('stroke', '#c3c2b7');
+      ln.setAttribute('stroke-width', String(1 + (l.weight || 1) / maxW * 2.5));
+      ln.dataset.a = l.source; ln.dataset.b = l.target;
+      svg.appendChild(ln);
+    });
+
+    graph.nodes.forEach(function(n){
+      var p = pos[n.id];
+      if(!p) return;
+      var r = n.type === 'us' ? 30 : Math.min(26, 13 + (n.weight || 1) * 2.5);
+      var g = document.createElementNS(NS, 'g');
+      g.style.cursor = 'default';
+      var c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', r);
+      c.setAttribute('fill', COLORS[n.type] || '#898781');
+      c.setAttribute('stroke', '#fcfcfb'); c.setAttribute('stroke-width', '2');
+      g.appendChild(c);
+      var t = document.createElementNS(NS, 'text');
+      t.setAttribute('x', p.x); t.setAttribute('y', p.y + r + 12); t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-size', '10.5'); t.setAttribute('font-weight', '600'); t.setAttribute('fill', '#0b0b0b');
+      t.textContent = n.label;
+      g.appendChild(t);
+
+      g.addEventListener('mousemove', function(ev){
+        var head = '<b>' + esc(n.label) + '</b>' +
+          (n.type === 'us' ? '' : '<br>기사 ' + (n.weight || 0) + '건');
+        var body = (n.articles || []).slice(0, 2).map(function(a){
+          return '<br>· ' + esc(String(a).slice(0, 34));
+        }).join('');
+        showTip(ev, head + body);
+        svg.querySelectorAll('line').forEach(function(l){
+          var hit = (l.dataset.a === n.id || l.dataset.b === n.id);
+          l.setAttribute('stroke', hit ? '#ea002c' : '#e1e0d9');
+        });
+      });
+      g.addEventListener('mouseleave', function(){
+        hideTip();
+        svg.querySelectorAll('line').forEach(function(l){ l.setAttribute('stroke', '#c3c2b7'); });
+      });
+      svg.appendChild(g);
+    });
+  }
+
   function loading(msg){
     $id('artList').innerHTML = '<div class="note">' + esc(msg) + '</div>';
   }
 
-  function loadForReport(id){
+  function loadForReport(id, force){
     if(!id) return;
-    loading('보고서 키워드로 뉴스를 검색하는 중…');
+    loading(force ? '뉴스를 새로 수집하는 중…' : '보고서 키워드로 뉴스를 불러오는 중…');
     $id('insArtSub').textContent = '관련도순 정렬';
-    API.get('/api/reports/' + id + '/news?limit=12').then(function(d){
+    API.get('/api/reports/' + id + '/news?limit=12' + (force ? '&force=true' : '')).then(function(d){
       renderKeywords(d.keywords);
       renderArticles(d.items, d.reason || '관련 기사를 찾지 못했습니다.');
+      renderGraph(d.graph);
+      renderFetchInfo(d);
       $id('insKwSub').textContent = (d.unit || '') + ' 보고서에서 자동 추출 · 클릭하면 해당 키워드로 검색';
     }).catch(function(e){
       renderArticles([], '뉴스를 불러오지 못했습니다: ' + e.message);
@@ -78,6 +183,7 @@ Screens.s6 = (function(){
     $id('insSearchBtn').onclick = function(){ searchDirect(); };
     $id('insQuery').addEventListener('keydown', function(e){ if(e.key === 'Enter') searchDirect(); });
     $id('insReportSel').onchange = function(){ loadForReport(this.value); };
+    $id('insRefreshBtn').onclick = function(){ loadForReport($id('insReportSel').value, true); };
   }
 
   return {
@@ -93,6 +199,8 @@ Screens.s6 = (function(){
         if(!reports.length){
           renderKeywords([]);
           renderArticles([], '업로드된 보고서가 없습니다. 위 검색창에 키워드를 직접 입력해 검색할 수 있습니다.');
+          renderGraph(null);
+          $id('insFetchInfo').textContent = '';
           return;
         }
         if(keep && reports.some(function(x){ return x.id === keep; })){
@@ -105,67 +213,3 @@ Screens.s6 = (function(){
     }
   };
 })();
-
-/* ───────── 관계 그래프 (SVG) — 더미 데이터 유지 ───────── */
-var NODES = [
-  {id:'us',  x:260, y:180, r:34, c:'#ea002c', t:'우리 사업',      d:'배터리소재사업단 기획안'},
-  {id:'ssdi',x:95,  y:75,  r:24, c:'#f47725', t:'삼성SDI',        d:'전고체 파일럿 S라인 운영'},
-  {id:'toy', x:425, y:70,  r:24, c:'#f47725', t:'도요타',          d:'2027 양산 목표'},
-  {id:'qs',  x:455, y:250, r:24, c:'#f47725', t:'QuantumScape',   d:'리튬메탈 분리막'},
-  {id:'lg',  x:80,  y:280, r:24, c:'#f47725', t:'LG에너지솔루션', d:'건식 전극 2028 상용화'},
-  {id:'sulf',x:250, y:60,  r:20, c:'#1baf7a', t:'황화물 전해질',   d:'특허 5건 · 기사 8건'},
-  {id:'limt',x:400, y:160, r:20, c:'#1baf7a', t:'리튬메탈 음극',   d:'기사 6건'},
-  {id:'dry', x:175, y:300, r:20, c:'#1baf7a', t:'건식 전극',       d:'특허 3건 · 기사 4건'}
-];
-var EDGES = [
-  ['us','sulf','핵심 기술'], ['us','limt','검토 중'], ['us','dry','공정 검토'],
-  ['ssdi','sulf','파일럿 적용'], ['toy','sulf','양산 개발'],
-  ['qs','limt','상용화 선도'], ['lg','dry','공정 개발'], ['toy','limt','공동 연구']
-];
-var svg = document.getElementById('graph');
-var NS = 'http://www.w3.org/2000/svg';
-function nodeById(id){ for(var i=0;i<NODES.length;i++){ if(NODES[i].id===id) return NODES[i]; } }
-EDGES.forEach(function(e){
-  var a = nodeById(e[0]), b = nodeById(e[1]);
-  var ln = document.createElementNS(NS,'line');
-  ln.setAttribute('x1',a.x); ln.setAttribute('y1',a.y);
-  ln.setAttribute('x2',b.x); ln.setAttribute('y2',b.y);
-  ln.setAttribute('stroke','#c3c2b7'); ln.setAttribute('stroke-width','1.5');
-  ln.dataset.a = e[0]; ln.dataset.b = e[1];
-  svg.appendChild(ln);
-  var mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
-  var lb = document.createElementNS(NS,'text');
-  lb.setAttribute('x',mx); lb.setAttribute('y',my-4); lb.setAttribute('text-anchor','middle');
-  lb.setAttribute('font-size','9'); lb.setAttribute('fill','#898781');
-  lb.textContent = e[2];
-  svg.appendChild(lb);
-});
-NODES.forEach(function(n){
-  var g = document.createElementNS(NS,'g');
-  g.style.cursor = 'default';
-  var c = document.createElementNS(NS,'circle');
-  c.setAttribute('cx',n.x); c.setAttribute('cy',n.y); c.setAttribute('r',n.r);
-  c.setAttribute('fill',n.c);
-  c.setAttribute('stroke','#fcfcfb'); c.setAttribute('stroke-width','2');
-  g.appendChild(c);
-  var t = document.createElementNS(NS,'text');
-  t.setAttribute('x',n.x); t.setAttribute('y',n.y + n.r + 13); t.setAttribute('text-anchor','middle');
-  t.setAttribute('font-size','11'); t.setAttribute('font-weight','600'); t.setAttribute('fill','#0b0b0b');
-  t.textContent = n.t;
-  g.appendChild(t);
-  g.addEventListener('mousemove', function(ev){
-    showTip(ev, '<b>' + n.t + '</b><br>' + n.d);
-    svg.querySelectorAll('line').forEach(function(l){
-      var hit = (l.dataset.a === n.id || l.dataset.b === n.id);
-      l.setAttribute('stroke', hit ? '#ea002c' : '#e1e0d9');
-      l.setAttribute('stroke-width', hit ? '2.5' : '1.5');
-    });
-  });
-  g.addEventListener('mouseleave', function(){
-    hideTip();
-    svg.querySelectorAll('line').forEach(function(l){
-      l.setAttribute('stroke','#c3c2b7'); l.setAttribute('stroke-width','1.5');
-    });
-  });
-  svg.appendChild(g);
-});
