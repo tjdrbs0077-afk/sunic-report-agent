@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 .venv/
+.venv_broken*/
 venv/
 *.egg-info/
 
@@ -17,6 +18,8 @@ _ref/*
 
 # 환경
 .env
+.env.*
+!.env.example
 *.log
 
 # OS / 에디터

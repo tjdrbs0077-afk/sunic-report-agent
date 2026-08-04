@@ -21,12 +21,14 @@ ANTHROPIC_API_KEY 설정 시
 """
 from __future__ import annotations
 
+import os
 import re
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from app import config
 from app.services import entity, graph_store, knowledge, llm, news, store
 from app.services.retrieve import MIN_SCORE, retrieve
 from app.services.retrieve import slide_document
@@ -285,10 +287,33 @@ def chat(req: ChatRequest):
 
 @router.get("/chat/capabilities")
 def capabilities():
-    """UI 가 시작할 때 무엇이 켜져 있는지 확인한다."""
+    """UI 가 시작할 때 무엇이 켜져 있는지 확인한다.
+
+    llm_enabled 가 false 로 나올 때 원인을 바로 짚을 수 있도록 진단 정보를 함께 준다.
+    **키 값 자체는 절대 반환하지 않는다** — 변수명과 접두사 형태만 노출한다.
+    """
+    key_present = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()
+                       or os.environ.get("LLM_API_KEY", "").strip())
+    model = llm.active_model()
+    hints: list[str] = []
+    if not key_present:
+        if not config.ENV_KEYS_LOADED:
+            hints.append(".env 파일을 찾지 못했습니다. 프로젝트 루트(run.bat 와 같은 폴더)에 있어야 합니다.")
+        else:
+            hints.append("`.env` 는 읽었지만 ANTHROPIC_API_KEY 가 없습니다. 변수명 철자를 확인하세요.")
+    elif model and not model.startswith(("claude-", "gpt-", "gemini-")):
+        hints.append(f"ANTHROPIC_MODEL 값 '{model}' 이 모델 ID 형식이 아닙니다. "
+                     "콘솔의 키 이름이 아니라 claude-sonnet-5 같은 모델 ID 를 넣으세요.")
+
     return {
         "llm_enabled": llm.is_enabled(),
-        "llm_model": llm.active_model(),
+        "llm_model": model,
         "news_channel": "naver_api" if news._naver_credentials() else "google_rss",
         "internal_db_connected": knowledge.is_connected(),
+        "diagnostics": {
+            "env_file_loaded": bool(config.ENV_KEYS_LOADED),
+            "env_keys": config.ENV_KEYS_LOADED,   # 이름만, 값은 없음
+            "api_key_present": key_present,
+            "hints": hints,
+        },
     }
