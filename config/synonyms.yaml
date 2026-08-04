@@ -1,0 +1,19 @@
+# 검색용 도메인 동의어 사전 — 같은 그룹의 단어는 함께 검색된다.
+# 새 그룹을 추가하려면 아무 키 이름으로 목록을 추가하면 된다 (키 이름은 미사용).
+# 특정 회사·특정 보고서 전용 규칙은 넣지 않는다 — 일반 업무 용어만.
+groups:
+  weakness: [약점, weakness, 취약점, 한계, 단점]
+  risk: [위험, risk, 리스크, 장애요인, 위협, threat, 우려]
+  strength: [강점, strength, 경쟁력, 우위, 차별점, 차별화]
+  schedule: [일정, schedule, 로드맵, roadmap, 추진일정, 타임라인, 마일스톤]
+  cost: [비용, 예산, 투자비, 금액, 투자, budget, investment, capex]
+  goal: [목표, kpi, 성과목표, 계획치, 타깃, target, goals]
+  revenue: [매출, 영업이익, 수익, 실적, revenue, sales, 손익]
+  strategy: [전략, strategy, 추진전략, 추진방안, 추진계획]
+  org: [조직, 담당, 체계, organization, 협업체계, 거버넌스, 인력]
+  market: [시장, market, 수요, 산업]
+  competition: [경쟁, 경쟁사, 경쟁구도, competitor, 경합]
+  swot: [swot, 강약점]
+  partner: [파트너, 협력사, 고객사, 제휴, partnership]
+  overview: [개요, overview, 개괄, 소개]
+  plan: [계획, plan, 방안]

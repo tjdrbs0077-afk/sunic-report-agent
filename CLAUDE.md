@@ -9,7 +9,7 @@
 
 ## 스택
 
-- 백엔드: FastAPI + python-pptx + scikit-learn (TF-IDF)
+- 백엔드: FastAPI + python-pptx + 자체 하이브리드 TF-IDF 검색 (순수 파이썬, services/retrieve.py)
 - 프론트: 바닐라 JS + CSS. **프레임워크 금지** (React/Vue/Tailwind/Bootstrap 전부 안 씀)
 - 저장: JSON 파일 (`data/`)
 - 폰트: Pretendard Variable (CDN)
@@ -100,7 +100,9 @@ app/
     ingest.py          PPTX → 구조화 JSON
     builder.py         구조화 JSON → 표준 양식 PPTX
     validator.py       standard_rules.yaml 대조 검사
-    retrieve.py        TF-IDF 검색
+    retrieve.py        하이브리드 TF-IDF 검색 (콘텐츠 가중치·동의어·중복 제거)
+    intent.py          질문 의도 분류 (사실/위치/요약/비교/분석/외부)
+    lexicon.py         불용어·조사·동의어 사전 (config/synonyms.yaml 로드)
     entity.py          검색어·공개 뉴스 → 엔티티 추출 (오프라인 규칙)
     graph_store.py     동향 그래프 저장·병합 (data/insight_graph.json)
   static/              index.html, css/theme.css, js/*

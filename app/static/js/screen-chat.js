@@ -5,9 +5,15 @@
 Screens.s5 = (function(){
   var reports = [];
   var mode = 'easy';
+  var sending = false;
+  var typingTimer = null;
   var caps = { llm_enabled:false, llm_model:null };
 
-  var MODES = [['brief', '간단히'], ['easy', '쉽게'], ['detail', '자세히']];
+  var MODES = [
+    ['brief', '간단히', '핵심만 짧게'],
+    ['easy', '보통', '핵심 근거와 설명을 균형 있게'],
+    ['detail', '자세히', '근거와 맥락까지']
+  ];
 
   function $id(x){ return document.getElementById(x); }
   function sel(){ return $id('chatReportSel'); }
@@ -15,8 +21,9 @@ Screens.s5 = (function(){
 
   function renderModes(){
     $id('chatModes').innerHTML = MODES.map(function(m){
-      var cls = m[0] === mode ? 'chip ok' : 'chip wait';
-      return '<button class="' + cls + '" style="cursor:pointer; border:none; font:inherit; font-size:11.5px;" data-mode="' + m[0] + '">' + m[1] + '</button>';
+      var active = m[0] === mode;
+      return '<button type="button" class="chat-mode-btn' + (active ? ' active' : '') + '"' +
+        ' data-mode="' + m[0] + '" aria-pressed="' + active + '" title="' + m[2] + '">' + m[1] + '</button>';
     }).join('');
     $id('chatModes').querySelectorAll('button').forEach(function(b){
       b.onclick = function(){ mode = b.dataset.mode; renderModes(); };
@@ -36,17 +43,35 @@ Screens.s5 = (function(){
   }
 
   function bubble(role, html){
-    var style = role === 'user'
-      ? 'align-self:flex-end; background:var(--grad); color:#fff;'
-      : 'align-self:flex-start; background:#f6f1ef; color:var(--text-primary);';
     $id('chatLog').insertAdjacentHTML('beforeend',
-      '<div style="' + style + ' border-radius:13px; padding:10px 14px; max-width:78%; font-size:13.5px; line-height:1.55; white-space:pre-wrap;">' + html + '</div>');
+      '<div class="chat-bubble ' + (role === 'user' ? 'user' : 'ai') + '">' + html + '</div>');
     $id('chatLog').scrollTop = $id('chatLog').scrollHeight;
+  }
+
+  function showTyping(){
+    hideTyping();
+    $id('chatLog').insertAdjacentHTML('beforeend',
+      '<div class="chat-bubble ai chat-typing" id="chatTyping" role="status">' +
+      '<span class="chat-typing-label">보고서 근거를 찾고 있어요</span>' +
+      '<span class="chat-typing-dots" aria-hidden="true"><i></i><i></i><i></i></span></div>');
+    $id('chatLog').scrollTop = $id('chatLog').scrollHeight;
+    typingTimer = setTimeout(function(){
+      var label = document.querySelector('#chatTyping .chat-typing-label');
+      if(label) label.textContent = '근거를 종합해 답변을 작성하고 있어요';
+    }, 1200);
+  }
+
+  function hideTyping(){
+    if(typingTimer){ clearTimeout(typingTimer); typingTimer = null; }
+    var el = $id('chatTyping');
+    if(el) el.remove();
   }
 
   /* [p.3]·"3페이지" → 보고서 상세 링크, [기사 N] → 우측 기사 번호 강조 */
   function linkify(text){
     var html = esc(text)
+      .replace(/^#{1,3}\s+(.+)$/gm, '<strong class="chat-answer-heading">$1</strong>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/\[기사\s*(\d{1,2})\]/g, function(_, n){
         return '<span style="color:var(--accent-deep); font-weight:700;">[기사 ' + n + ']</span>';
       });
@@ -76,29 +101,34 @@ Screens.s5 = (function(){
 
     if(sources.length){
       var max = Math.max.apply(null, sources.map(function(s){ return s.score; })) || 1;
-      html += '<div style="font-size:12px; font-weight:700; color:var(--text-secondary); margin-bottom:6px;">보고서 근거 페이지</div>';
+      html += '<section class="chat-source-section"><div class="chat-section-label">' +
+        '<span>보고서 근거</span><b>' + sources.length + '개 페이지</b></div>';
       html += sources.map(function(s){
         var quotes = (s.evidence || []).slice(0, 2).map(function(e){
-          return '<div style="font-size:12px; color:var(--text-secondary); margin-top:3px;">↳ “' + esc(e.quote) + '”</div>';
+          return '<span class="chat-source-quote">“' + esc(e.quote) + '”</span>';
         }).join('');
-        return '<div class="art"><div class="t">p.' + s.slide_number + ' · ' + esc(s.page_title) + '</div>' +
-          '<div class="m"><span>' + esc(s.summary).slice(0, 60) + '…</span>' +
-          '<span class="rel"><span class="relbar"><i style="width:' + Math.round(s.score / max * 100) + '%"></i></span>' + s.score.toFixed(3) + '</span></div>' +
-          quotes + '</div>';
-      }).join('');
+        var pct = Math.max(4, Math.round(s.score / max * 100));
+        return '<button type="button" class="chat-source-item" data-source-page="' + s.slide_number + '">' +
+          '<span class="chat-source-head"><span class="chat-page-badge">p.' + s.slide_number + '</span>' +
+          '<span class="chat-source-title">' + esc(s.page_title) + '</span></span>' +
+          '<span class="chat-source-summary">' + esc(s.summary) + '</span>' + quotes +
+          '<span class="chat-score"><span class="chat-score-track"><i style="width:' + pct + '%"></i></span>' +
+          '<span>관련도 ' + s.score.toFixed(3) + '</span></span></button>';
+      }).join('') + '</section>';
     }
     if(articles.length){
-      html += '<div style="font-size:12px; font-weight:700; color:var(--text-secondary); margin:10px 0 6px;">참고 기사</div>';
+      html += '<section class="chat-source-section"><div class="chat-section-label">' +
+        '<span>참고 기사</span><b>' + articles.length + '건</b></div>';
       html += articles.map(function(a, i){
         var title = a.url
-          ? '<a href="' + esc(a.url) + '" target="_blank" rel="noopener noreferrer" style="color:inherit; text-decoration:none;">' + esc(a.title) + '</a>'
+          ? '<a href="' + esc(a.url) + '" target="_blank" rel="noopener noreferrer">' + esc(a.title) + '</a>'
           : esc(a.title);
-        return '<div class="art"><div class="t">[' + (i + 1) + '] ' + title + '</div>' +
-          '<div class="m"><span class="pill news">' + esc(a.source || '뉴스') + '</span>' +
+        return '<div class="chat-article-item"><div class="chat-article-title">[' + (i + 1) + '] ' + title + '</div>' +
+          '<div class="chat-article-meta"><span class="pill news">' + esc(a.source || '뉴스') + '</span>' +
           '<span>' + esc(a.date || '날짜 미상') + '</span></div></div>';
-      }).join('');
+      }).join('') + '</section>';
     }
-    box.innerHTML = html || '<div class="note">이번 답변에 연결된 근거가 없습니다.</div>';
+    box.innerHTML = html || '<div class="chat-empty-state">이번 답변에 연결된 근거가 없습니다.</div>';
   }
 
   /* 전송 내역 — 무엇이 외부로 나갔는지 매 답변마다 표시 */
@@ -106,16 +136,41 @@ Screens.s5 = (function(){
     var box = $id('chatDisclosure');
     if(!d){ box.innerHTML = ''; return; }
     var chip = d.external_call ? 'chip run' : 'chip ok';
-    var html = '<div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--grid);">' +
-      '<span class="' + chip + '">' + (d.external_call ? '외부 호출 있음' : '외부 호출 없음') + '</span>' +
-      '<div style="font-size:12px; color:var(--text-secondary); margin-top:8px;">' + esc(d.label) + '</div>';
+    var html = '<section class="chat-disclosure-card"><div class="chat-section-label">' +
+      '<span>외부 전송 내역</span><span class="' + chip + '">' +
+      (d.external_call ? '외부 호출 있음' : '외부 호출 없음') + '</span></div>' +
+      '<p class="chat-disclosure-label">' + esc(d.label) + '</p>';
     if(d.sent_text){
-      html += '<div style="font-size:12px; color:var(--text-muted); margin-top:6px; word-break:break-all;">전송한 내용 — ' + esc(d.sent_text) + '</div>';
+      html += '<div class="chat-sent-text"><b>전송한 범위</b><span>' + esc(d.sent_text) + '</span></div>';
     }
     if(notice){
-      html += '<div class="note" style="margin-top:10px;">' + esc(notice) + '</div>';
+      html += '<div class="note chat-notice">' + esc(notice) + '</div>';
     }
-    box.innerHTML = html + '</div>';
+    box.innerHTML = html + '</section>';
+  }
+
+  /* 답변 메타 — 왜 이 답이 나왔는지 (경로·질문 유형·근거 충분성·폴백 사유) */
+  function renderMeta(m){
+    if(!m) return;
+    var box = $id('chatDisclosure');
+    var SUFF = { sufficient: ['근거 충분', 'chip ok'], partial: ['근거 부분적', 'chip wait'],
+                 insufficient: ['근거 부족', 'chip err'] };
+    var chips = '<span class="chip ' + (m.path === 'llm' ? 'ok' : 'wait') + '">' +
+      (m.path === 'llm' ? 'Claude 답변' : '오프라인 답변') + '</span> ' +
+      '<span class="chip wait">' + esc(m.intent_label || '') + '</span>';
+    if(m.sufficiency && SUFF[m.sufficiency]){
+      chips += ' <span class="' + SUFF[m.sufficiency][1] + '">' + SUFF[m.sufficiency][0] + '</span>';
+    }
+    var detail = [];
+    if(m.path === 'llm' && m.model) detail.push('모델 ' + esc(m.model));
+    if(m.evidence_scope) detail.push('근거 ' + esc(m.evidence_scope));
+    if(m.matched_terms && m.matched_terms.length) detail.push('일치 토큰: ' + esc(m.matched_terms.join(', ')));
+    if(m.fallback_reason) detail.push('폴백 사유: ' + esc(m.fallback_reason));
+    box.insertAdjacentHTML('beforeend',
+      '<section class="chat-meta-card"><div class="chat-section-label"><span>답변 생성 정보</span></div>' +
+      '<div class="chat-meta-chips">' + chips + '</div>' +
+      (detail.length ? '<div class="chat-meta-detail">' + detail.join(' · ') + '</div>' : '') +
+      '</section>');
   }
 
   /* 오프라인 폴백 안내 버튼 (LLM 미설정 시 서버가 제안을 보낼 수 있음) */
@@ -160,31 +215,43 @@ Screens.s5 = (function(){
   function send(){
     var input = $id('chatInput');
     var q = input.value.trim();
-    if(!q) return;
+    if(!q || sending) return;
 
+    sending = true;
     input.value = '';
     bubble('user', esc(q));
     var btn = $id('chatSend');
-    btn.classList.add('disabled');
+    btn.disabled = true;
+    input.disabled = true;
+    $id('chatLog').setAttribute('aria-busy', 'true');
+    showTyping();
 
     var body = { question: q, mode: mode };
     if(hasReport()) body.report_id = sel().value;
 
     API.post('/api/chat', body).then(function(d){
+      hideTyping();
       bubble('ai', linkify(d.answer));
       bindPageLinks();
       renderSources(d);
       renderDisclosure(d.disclosure, d.notice);
+      renderMeta(d.answer_meta);
       renderSuggestion(d.suggestion);
       renderGraphDelta(d.graph_delta);
     }).catch(function(e){
+      hideTyping();
       bubble('ai', '오류: ' + esc(e.message));
     }).then(function(){
-      btn.classList.remove('disabled');
+      sending = false;
+      btn.disabled = false;
+      input.disabled = false;
+      $id('chatLog').setAttribute('aria-busy', 'false');
+      input.focus();
     });
   }
 
   function clearConversation(){
+    hideTyping();
     $id('chatLog').innerHTML = '';
     $id('chatSources').innerHTML = '';
     $id('chatDisclosure').innerHTML = '';
@@ -204,7 +271,13 @@ Screens.s5 = (function(){
   function bind(){
     if(bound) return; bound = true;
     $id('chatSend').onclick = send;
-    $id('chatInput').addEventListener('keydown', function(e){ if(e.key === 'Enter') send(); });
+    $id('chatInput').addEventListener('keydown', function(e){
+      if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }
+    });
+    $id('chatSources').addEventListener('click', function(e){
+      var item = e.target.closest('[data-source-page]');
+      if(item && hasReport()) Screens.s3.show(sel().value, +item.dataset.sourcePage);
+    });
     sel().onchange = clearConversation;
   }
 

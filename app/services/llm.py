@@ -112,6 +112,9 @@ def complete(system: str, user: str, max_tokens: int = 1200, temperature: float 
         return None
 
     if cfg["provider"] == "anthropic":
+        # Claude 5 계열은 `temperature` 파라미터를 폐기했다.
+        # 이 필드를 보내면 Messages API가 400 invalid_request_error를
+        # 반환하므로 Anthropic에서는 모델 기본 생성 설정을 사용한다.
         data = _post_json(
             cfg["url"],
             {
@@ -122,7 +125,6 @@ def complete(system: str, user: str, max_tokens: int = 1200, temperature: float 
             {
                 "model": cfg["model"],
                 "max_tokens": max_tokens,
-                "temperature": temperature,
                 "system": system,
                 "messages": [{"role": "user", "content": user}],
             },
