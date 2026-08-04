@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from app import config
 from app.services import store
-from app.services.builder import exact_template_profile
+from app.services.builder import apply_rule_fonts, exact_template_profile
 
 router = APIRouter(prefix="/api", tags=["layout"])
 
@@ -23,7 +23,7 @@ class LayoutSaveRequest(BaseModel):
 def profile() -> dict[str, Any]:
     if config.PROFILE_CACHE.exists():
         return json.loads(config.PROFILE_CACHE.read_text(encoding="utf-8"))
-    result = exact_template_profile(config.TEMPLATE)
+    result = apply_rule_fonts(exact_template_profile(config.active_template()))
     config.PROFILE_CACHE.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     return result
 

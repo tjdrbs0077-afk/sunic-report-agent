@@ -1,51 +1,190 @@
-/* ⑥ 동향 인사이트 — /api/insight/graph 기반 조사 지식맵.
-   챗봇(⑤) 지식·동향 모드의 조사 활동이 누적된 그래프를 그린다.
-
-   선 스타일 = 신뢰도 구분:
-     extracted     실선   (근거 문장을 동반한 추출 관계 — 2차)
-     co_occurrence 점선   (같은 기사에 함께 언급 — 관계 미확정)
-     seed          흐린 선 (예시 데이터)
-
-   표시 정책: 저장은 전체, 화면은 중요도(touch_count) 상위 MAX_VISIBLE개
-   + 선택·강조 노드의 이웃. 나머지는 "더 보기"로 전체 표시. */
+/* ⑥ 동향 인사이트 — 보고서 뉴스 검색 + 챗봇 조사 지식맵.
+   - /api/reports/{id}/news : 보고서 키워드 기반 6시간 캐시 뉴스
+   - /api/insight/graph     : 챗봇 질문으로 누적된 노드·관계
+   두 결과를 하나의 기업·기술 그래프로 통합해 보여준다. */
 Screens.s6 = (function(){
   var NS = 'http://www.w3.org/2000/svg';
-  var CX = 260, CY = 180;            /* viewBox 520×360 중심 */
-  var RING = { tech: 90, company: 150 };
-  var COLOR = { biz: '#ea002c', company: '#f47725', tech: '#1baf7a' };
+  var CX = 260, CY = 180;
+  var RING = { tech: 90, company: 158 };
+  var COLORS = { biz: '#ea002c', company: '#f47725', tech: '#1baf7a' };
   var MAX_VISIBLE = 20;
-  var MAX_LABEL = 10;
 
-  var graphData = null;
-  var graphLoaded = false;
+  var reports = [];
+  var loadedOnce = false;
+  var knowledgeGraph = null;
+  var reportGraph = null;
+  var graphData = { nodes:[], edges:[] };
   var pendingFocusIds = [];
-  var showAll = false;
   var selectedId = null;
+  var showAll = false;
 
   function $id(x){ return document.getElementById(x); }
   function reducedMotion(){
     return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
+  function cleanId(value){
+    return String(value || '').toLowerCase().replace(/\s+/g, '-').replace(/[^0-9a-z가-힣:_-]/g, '');
+  }
+  function canonicalId(type, label){
+    return type + ':' + (cleanId(label) || 'unknown');
+  }
 
-  /* ── 표시 대상 선정 ── */
+  /* ── 보고서 뉴스 ── */
+  function renderArticles(items, note){
+    var box = $id('artList');
+    if(!items || !items.length){
+      box.innerHTML = '<div class="note">' + esc(note || '검색 결과가 없습니다.') + '</div>';
+      return;
+    }
+    box.innerHTML = items.map(function(a){
+      var url = a.link || a.url || '';
+      var link = url
+        ? '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" style="color:inherit; text-decoration:none;">' + esc(a.title) + '</a>'
+        : esc(a.title);
+      var score = typeof a.score === 'number' ? a.score : null;
+      return '<div class="art"><div class="t">' + link + '</div>' +
+        '<div class="m"><span class="pill news">뉴스</span>' +
+        '<span>' + esc(a.source || '뉴스') + (a.date ? ' · ' + esc(a.date) : '') + '</span>' +
+        (a.keyword ? '<span style="color:var(--accent-deep); font-weight:600;">' + esc(a.keyword) + '</span>' : '') +
+        (score == null ? '' : '<span class="rel"><span class="relbar"><i style="width:' + Math.round(score * 100) + '%"></i></span>관련도 ' + score.toFixed(2) + '</span>') +
+        '</div></div>';
+    }).join('');
+  }
+
+  function renderReportKeywords(list){
+    var box = $id('insKeywords');
+    if(!list || !list.length){
+      box.innerHTML = '<span style="font-size:12.5px; color:var(--text-muted);">추출된 키워드가 없습니다.</span>';
+      return;
+    }
+    box.innerHTML = list.map(function(k){
+      return '<span class="kw" data-kw="' + esc(k.keyword) + '" style="cursor:pointer;"><b>' + esc(k.keyword) + '</b>' +
+        '<span class="n">기사 ' + k.count + '</span></span>';
+    }).join('');
+    box.querySelectorAll('[data-kw]').forEach(function(el){
+      el.onclick = function(){
+        $id('insQuery').value = el.dataset.kw;
+        searchDirect(el.dataset.kw);
+      };
+    });
+  }
+
+  function renderResearchKeywords(){
+    var box = $id('kwList');
+    var nodes = knowledgeGraph && knowledgeGraph.nodes ? knowledgeGraph.nodes : [];
+    var researched = nodes.filter(function(n){ return (n.touch_count || 0) > 0; })
+      .sort(function(a, b){ return (b.query_count || 0) - (a.query_count || 0) || (b.touch_count || 0) - (a.touch_count || 0); })
+      .slice(0, 8);
+    if(!researched.length){
+      box.innerHTML = '<span style="font-size:12.5px; color:var(--text-muted);">아직 챗봇 조사 이력이 없습니다. 지식·동향 질문을 하면 여기에 쌓입니다.</span>';
+      return;
+    }
+    box.innerHTML = researched.map(function(n){
+      return '<span class="kw"><b>' + esc(n.label) + '</b><span class="n">조사 ' + (n.query_count || 0) + '회 · 기사 ' + (n.article_count || 0) + '</span></span>';
+    }).join('');
+  }
+
+  function renderFetchInfo(d){
+    var info = $id('insFetchInfo');
+    if(!d || !d.fetched_at){ info.textContent = ''; return; }
+    var when = new Date(d.fetched_at);
+    var mm = String(when.getMinutes()).padStart(2, '0');
+    var stamp = (when.getMonth() + 1) + '/' + when.getDate() + ' ' + when.getHours() + ':' + mm;
+    var age = d.age_minutes == null ? '' :
+      (d.age_minutes < 60 ? d.age_minutes + '분 전' : Math.floor(d.age_minutes / 60) + '시간 전');
+    info.textContent = '마지막 수집: ' + stamp + (age ? ' (' + age + ')' : '') +
+      ' · ' + d.refresh_hours + '시간마다 자동 갱신' + (d.from_cache ? ' · 저장된 결과' : ' · 방금 수집함');
+  }
+
+  function loading(msg){
+    $id('artList').innerHTML = '<div class="note">' + esc(msg) + '</div>';
+  }
+  function loadForReport(id, force){
+    if(!id) return;
+    loading(force ? '뉴스를 새로 수집하는 중…' : '보고서 키워드로 뉴스를 불러오는 중…');
+    $id('insArtSub').textContent = '관련도순 정렬';
+    API.get('/api/reports/' + id + '/news?limit=12' + (force ? '&force=true' : '')).then(function(d){
+      renderReportKeywords(d.keywords);
+      renderArticles(d.items, d.reason || '관련 기사를 찾지 못했습니다.');
+      renderFetchInfo(d);
+      reportGraph = d.graph || null;
+      rebuildGraph();
+      $id('insKwSub').textContent = (d.unit || '') + ' 보고서에서 자동 추출 · 클릭하면 해당 키워드로 검색';
+    }).catch(function(e){
+      renderArticles([], '뉴스를 불러오지 못했습니다: ' + e.message);
+    });
+  }
+  function searchDirect(q){
+    q = (q || $id('insQuery').value || '').trim();
+    if(!q) return;
+    loading('‘' + q + '’ 검색 중…');
+    $id('insArtSub').textContent = '‘' + q + '’ 검색 결과';
+    API.get('/api/news?q=' + encodeURIComponent(q) + '&limit=12').then(function(d){
+      renderArticles(d.items, d.reason || '검색 결과가 없습니다.');
+    }).catch(function(e){
+      renderArticles([], '검색 실패: ' + e.message);
+    });
+  }
+
+  /* ── 두 그래프 스키마 통합 ── */
+  function rebuildGraph(){
+    var byId = {}, edges = [];
+    function addNode(node){
+      var current = byId[node.id];
+      if(!current){ byId[node.id] = node; return; }
+      current.weight = Math.max(current.weight || 0, node.weight || 0);
+      current.article_count = Math.max(current.article_count || 0, node.article_count || 0);
+      current.touch_count = Math.max(current.touch_count || 0, node.touch_count || 0);
+      current.query_count = Math.max(current.query_count || 0, node.query_count || 0);
+      current.articles = (current.articles || []).concat(node.articles || []).slice(0, 5);
+    }
+    (knowledgeGraph && knowledgeGraph.nodes || []).forEach(function(n){
+      addNode({
+        id:n.id, label:n.label, type:n.type === 'biz' ? 'biz' : n.type,
+        desc:n.desc || '', seed:!!n.seed, touch_count:n.touch_count || 0,
+        query_count:n.query_count || 0, article_count:n.article_count || 0,
+        weight:n.touch_count || n.article_count || 1, search_queries:n.search_queries || [],
+        last_seen:n.last_seen || '', articles:[]
+      });
+    });
+    (knowledgeGraph && knowledgeGraph.edges || []).forEach(function(e){
+      edges.push({a:e.a, b:e.b, label:e.label || '함께 언급', weight:e.weight || 1,
+                  relation_type:e.relation_type || 'co_occurrence', articles:e.articles || []});
+    });
+
+    var reportIdMap = {};
+    (reportGraph && reportGraph.nodes || []).forEach(function(n){
+      var type = n.type === 'us' ? 'biz' : n.type;
+      var id = type === 'biz' ? canonicalId('biz', n.label || '우리 사업') : canonicalId(type, n.label);
+      reportIdMap[n.id] = id;
+      addNode({id:id, label:n.label, type:type, weight:n.weight || 1,
+               article_count:n.weight || 0, touch_count:0, query_count:0,
+               articles:n.articles || [], search_queries:[], seed:false});
+    });
+    (reportGraph && reportGraph.links || []).forEach(function(l){
+      if(!reportIdMap[l.source] || !reportIdMap[l.target]) return;
+      edges.push({a:reportIdMap[l.source], b:reportIdMap[l.target], label:l.label || '기사 근거',
+                  weight:l.weight || 1, relation_type:'extracted', articles:l.articles || []});
+    });
+    graphData = { nodes:Object.keys(byId).map(function(id){ return byId[id]; }), edges:edges };
+    renderGraph();
+  }
+
   function neighborsOf(id){
     var out = {};
-    (graphData.edges || []).forEach(function(e){
+    graphData.edges.forEach(function(e){
       if(e.a === id) out[e.b] = 1;
       if(e.b === id) out[e.a] = 1;
     });
     return out;
   }
   function visibleNodes(){
-    var nodes = graphData.nodes.slice();
-    nodes.sort(function(a, b){
-      return (b.touch_count - a.touch_count) || (b.article_count - a.article_count) ||
-             (a.seed === b.seed ? 0 : (a.seed ? 1 : -1));
+    var nodes = graphData.nodes.slice().sort(function(a, b){
+      return (b.touch_count || b.weight || 0) - (a.touch_count || a.weight || 0);
     });
     if(showAll || nodes.length <= MAX_VISIBLE) return nodes;
     var keep = {};
     nodes.slice(0, MAX_VISIBLE).forEach(function(n){ keep[n.id] = 1; });
-    /* 선택·강조 노드와 그 이웃은 순위와 무관하게 표시 */
     [selectedId].concat(pendingFocusIds).forEach(function(id){
       if(!id) return;
       keep[id] = 1;
@@ -53,245 +192,169 @@ Screens.s6 = (function(){
     });
     return nodes.filter(function(n){ return keep[n.id]; });
   }
-
-  /* ── 배치: biz 중앙 고정, tech 안쪽 링, company 바깥 링 ── */
   function layout(nodes){
-    var pos = {};
-    var rings = { tech: [], company: [] };
+    var pos = {}, rings = {tech:[], company:[]};
     nodes.forEach(function(n){
-      if(n.type === 'biz'){ pos[n.id] = { x: CX, y: CY }; }
+      if(n.type === 'biz') pos[n.id] = {x:CX, y:CY};
       else (rings[n.type] || rings.company).push(n);
     });
     Object.keys(rings).forEach(function(type){
-      var list = rings[type], r = RING[type];
-      list.forEach(function(n, i){
-        var angle = (2 * Math.PI * i / Math.max(list.length, 1)) - Math.PI / 2 + (type === 'company' ? 0.35 : 0);
-        pos[n.id] = { x: CX + r * Math.cos(angle), y: CY + r * Math.sin(angle) };
+      rings[type].forEach(function(n, i){
+        var a = Math.PI * 2 * i / Math.max(rings[type].length, 1) - Math.PI / 2 + (type === 'company' ? 0.35 : 0);
+        pos[n.id] = {x:CX + RING[type] * Math.cos(a), y:CY + RING[type] * Math.sin(a)};
       });
     });
     return pos;
   }
-  function radius(n){
+  function nodeRadius(n){
     if(n.type === 'biz') return 30;
-    return Math.min(34, 13 + Math.sqrt(n.touch_count || 0) * 4);
+    return Math.min(32, 13 + Math.sqrt(n.touch_count || n.weight || 1) * 3.5);
   }
-  function shortLabel(s){
-    return s.length > MAX_LABEL ? s.slice(0, MAX_LABEL - 1) + '…' : s;
-  }
+  function shortLabel(s){ return s.length > 11 ? s.slice(0, 10) + '…' : s; }
   function edgeStyle(e){
-    if(e.relation_type === 'seed') return { stroke: '#c3c2b7', dash: '', opacity: 0.45 };
-    if(e.relation_type === 'co_occurrence') return { stroke: '#c3c2b7', dash: '4 3', opacity: 1 };
-    return { stroke: '#a29699', dash: '', opacity: 1 };  /* extracted */
+    if(e.relation_type === 'seed') return {stroke:'#c3c2b7', dash:'', opacity:0.45};
+    if(e.relation_type === 'co_occurrence') return {stroke:'#c3c2b7', dash:'4 3', opacity:1};
+    return {stroke:'#a29699', dash:'', opacity:1};
   }
 
-  /* ── 렌더 ── */
-  function render(){
+  function renderGraph(){
     var svg = $id('graph');
     svg.innerHTML = '';
-    var nodes = visibleNodes();
-    var byId = {};
+    if(!graphData.nodes.length){
+      var empty = document.createElementNS(NS, 'text');
+      empty.setAttribute('x', CX); empty.setAttribute('y', CY); empty.setAttribute('text-anchor', 'middle');
+      empty.setAttribute('font-size', '12'); empty.setAttribute('fill', '#898781');
+      empty.textContent = '표시할 조사 관계가 없습니다.';
+      svg.appendChild(empty); return;
+    }
+    var nodes = visibleNodes(), byId = {}, pos = layout(nodes);
     nodes.forEach(function(n){ byId[n.id] = n; });
-    var pos = layout(nodes);
-
-    (graphData.edges || []).forEach(function(e){
+    graphData.edges.forEach(function(e){
       if(!byId[e.a] || !byId[e.b]) return;
-      var st = edgeStyle(e);
-      var ln = document.createElementNS(NS, 'line');
+      var st = edgeStyle(e), ln = document.createElementNS(NS, 'line');
       ln.setAttribute('x1', pos[e.a].x); ln.setAttribute('y1', pos[e.a].y);
       ln.setAttribute('x2', pos[e.b].x); ln.setAttribute('y2', pos[e.b].y);
-      ln.setAttribute('stroke', st.stroke);
-      ln.setAttribute('stroke-width', Math.min(1.5 + (e.weight - 1) * 0.5, 3.5));
+      ln.setAttribute('stroke', st.stroke); ln.setAttribute('opacity', st.opacity);
+      ln.setAttribute('stroke-width', Math.min(1.5 + (e.weight - 1) * 0.45, 3.5));
       if(st.dash) ln.setAttribute('stroke-dasharray', st.dash);
-      ln.setAttribute('opacity', st.opacity);
       ln.dataset.a = e.a; ln.dataset.b = e.b;
       svg.appendChild(ln);
-
-      var lb = document.createElementNS(NS, 'text');
-      lb.setAttribute('x', (pos[e.a].x + pos[e.b].x) / 2);
-      lb.setAttribute('y', (pos[e.a].y + pos[e.b].y) / 2 - 4);
-      lb.setAttribute('text-anchor', 'middle');
-      lb.setAttribute('font-size', '9'); lb.setAttribute('fill', '#898781');
-      lb.textContent = e.label + (e.weight > 1 ? ' ×' + e.weight : '');
-      svg.appendChild(lb);
     });
-
     nodes.forEach(function(n){
-      var p = pos[n.id], r = radius(n);
-      var g = document.createElementNS(NS, 'g');
+      var p = pos[n.id], r = nodeRadius(n), g = document.createElementNS(NS, 'g');
       g.style.cursor = 'pointer';
-
       var c = document.createElementNS(NS, 'circle');
       c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', r);
-      c.setAttribute('fill', COLOR[n.type] || COLOR.company);
+      c.setAttribute('fill', COLORS[n.type] || COLORS.company);
       c.setAttribute('stroke', n.id === selectedId ? '#ea002c' : '#fcfcfb');
-      c.setAttribute('stroke-width', n.id === selectedId ? 3 : 2);
-      if(n.seed && !n.touch_count) c.setAttribute('opacity', '0.55');  /* 예시 데이터 */
-      c.dataset.node = n.id;
+      c.setAttribute('stroke-width', n.id === selectedId ? 3 : 2); c.dataset.node = n.id;
+      if(n.seed && !n.touch_count) c.setAttribute('opacity', '0.55');
       g.appendChild(c);
-
       var t = document.createElementNS(NS, 'text');
-      t.setAttribute('x', p.x); t.setAttribute('y', p.y + r + 13);
-      t.setAttribute('text-anchor', 'middle');
-      t.setAttribute('font-size', '11'); t.setAttribute('font-weight', '600');
-      t.setAttribute('fill', '#0b0b0b');
-      if(n.seed && !n.touch_count) t.setAttribute('opacity', '0.6');
-      t.textContent = shortLabel(n.label);
-      g.appendChild(t);
-
+      t.setAttribute('x', p.x); t.setAttribute('y', p.y + r + 13); t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-size', '10.5'); t.setAttribute('font-weight', '600'); t.setAttribute('fill', '#0b0b0b');
+      t.textContent = shortLabel(n.label); g.appendChild(t);
       g.addEventListener('mousemove', function(ev){
-        showTip(ev, tipHtml(n));
-        svg.querySelectorAll('line').forEach(function(l){
-          var hit = (l.dataset.a === n.id || l.dataset.b === n.id);
-          l.setAttribute('stroke', hit ? '#ea002c' : edgeStyleById(l).stroke);
-          l.setAttribute('stroke-width', hit ? 2.5 : 1.5);
+        var details = '<b>' + esc(n.label) + '</b><br>조사 ' + (n.query_count || 0) + '회 · 기사 ' + (n.article_count || n.weight || 0) + '건';
+        showTip(ev, details);
+        svg.querySelectorAll('line').forEach(function(line){
+          line.setAttribute('stroke', line.dataset.a === n.id || line.dataset.b === n.id ? '#ea002c' : '#e1e0d9');
         });
       });
-      g.addEventListener('mouseleave', function(){
-        hideTip();
-        svg.querySelectorAll('line').forEach(function(l){
-          l.setAttribute('stroke', edgeStyleById(l).stroke);
-          l.setAttribute('stroke-width', 1.5);
-        });
-      });
-      g.addEventListener('click', function(){ select(n.id); });
+      g.addEventListener('mouseleave', function(){ hideTip(); renderGraph(); });
+      g.addEventListener('click', function(){ selectNode(n.id); });
       svg.appendChild(g);
     });
-
+    $id('insGraphSub').textContent = '노드 ' + graphData.nodes.length + '개 · 관계 ' + graphData.edges.length + '개';
     renderMore(nodes.length);
     applyFocus();
   }
 
-  function edgeStyleById(lineEl){
-    var e = (graphData.edges || []).filter(function(x){
-      return x.a === lineEl.dataset.a && x.b === lineEl.dataset.b;
-    })[0];
-    return e ? edgeStyle(e) : { stroke: '#c3c2b7' };
-  }
-
-  function tipHtml(n){
-    var html = '<b>' + esc(n.label) + '</b>';
-    if(n.seed && !n.touch_count) html += ' <span style="color:#a29699;">· 예시</span>';
-    if(n.desc) html += '<br>' + esc(n.desc);
-    if(n.touch_count){
-      html += '<br>조사 ' + n.query_count + '회 · 기사 ' + n.article_count + '건';
-      if((n.search_queries || []).length){
-        html += '<br>검색어: ' + esc(n.search_queries.slice(-3).join(', '));
-      }
-    }
-    return html;
-  }
-
-  function renderMore(shownCount){
-    var box = $id('graphMore');
-    var total = graphData.nodes.length;
+  function renderMore(shown){
+    var box = $id('graphMore'), total = graphData.nodes.length;
     if(showAll && total > MAX_VISIBLE){
       box.innerHTML = '<button class="btn ghost" style="margin-top:8px;">상위 ' + MAX_VISIBLE + '개만 보기</button>';
-      box.querySelector('button').onclick = function(){ showAll = false; render(); };
-    } else if(total > shownCount){
-      box.innerHTML = '<button class="btn ghost" style="margin-top:8px;">관련 노드 ' + (total - shownCount) + '개 더 보기</button>';
-      box.querySelector('button').onclick = function(){ showAll = true; render(); };
-    } else {
-      box.innerHTML = '';
-    }
+      box.querySelector('button').onclick = function(){ showAll = false; renderGraph(); };
+    }else if(total > shown){
+      box.innerHTML = '<button class="btn ghost" style="margin-top:8px;">관련 노드 ' + (total - shown) + '개 더 보기</button>';
+      box.querySelector('button').onclick = function(){ showAll = true; renderGraph(); };
+    }else box.innerHTML = '';
   }
 
-  /* ── 노드 선택 → 상세 + 챗봇 프리필 ── */
-  var ASK_TEMPLATES = {
-    company: '{label}의 최근 기술 개발과 사업 동향을 알려줘',
-    tech: '{label}의 최근 산업 동향과 주요 기업을 알려줘',
-    biz: '{label}과 연관된 최근 외부 동향을 알려줘'
+  var ASK = {
+    company:'{label}의 최근 기술 개발과 사업 동향을 알려줘',
+    tech:'{label}의 최근 산업 동향과 주요 기업을 알려줘',
+    biz:'{label}과 연관된 최근 외부 동향을 알려줘'
   };
-  function select(id){
-    selectedId = (selectedId === id) ? null : id;
+  function selectNode(id){
+    selectedId = selectedId === id ? null : id;
     var box = $id('nodeDetail');
-    if(!selectedId){ box.style.display = 'none'; render(); return; }
+    if(!selectedId){ box.style.display = 'none'; renderGraph(); return; }
     var n = graphData.nodes.filter(function(x){ return x.id === id; })[0];
-    var question = (ASK_TEMPLATES[n.type] || ASK_TEMPLATES.tech).replace('{label}', n.label);
-    var meta = n.touch_count
-      ? '조사 ' + n.query_count + '회 · 기사 ' + n.article_count + '건 · 최근 ' + (n.last_seen || '—')
-      : '예시 데이터 — 아직 조사되지 않았습니다';
-    box.innerHTML = '<b>' + esc(n.label) + '</b>' +
-      (n.desc ? ' · ' + esc(n.desc) : '') +
-      '<div style="margin-top:4px; color:var(--text-secondary);">' + esc(meta) + '</div>' +
+    var question = (ASK[n.type] || ASK.tech).replace('{label}', n.label);
+    box.innerHTML = '<b>' + esc(n.label) + '</b>' + (n.desc ? ' · ' + esc(n.desc) : '') +
+      '<div style="margin-top:4px; color:var(--text-secondary);">조사 ' + (n.query_count || 0) + '회 · 기사 ' + (n.article_count || n.weight || 0) + '건</div>' +
       '<button class="btn primary" style="margin-top:8px;">챗봇에 물어보기</button>' +
-      '<span style="font-size:12px; color:var(--text-muted); margin-left:8px;">질문이 입력만 되며, 전송은 직접 확정합니다</span>';
+      '<span style="font-size:12px; color:var(--text-muted); margin-left:8px;">질문은 입력만 되며 전송은 직접 확정합니다</span>';
     box.style.display = '';
-    box.querySelector('button').onclick = function(){
-      goTo('s5');
-      if(Screens.s5 && Screens.s5.ask) Screens.s5.ask(question);
-    };
-    render();
+    box.querySelector('button').onclick = function(){ goTo('s5'); if(Screens.s5 && Screens.s5.ask) Screens.s5.ask(question); };
+    renderGraph();
   }
-
-  /* ── 챗봇에서 넘어온 강조 — 로딩 전 호출 대비 보류 큐 ── */
-  function focus(ids){
-    pendingFocusIds = ids || [];
-    if(graphLoaded) render();
-  }
+  function focus(ids){ pendingFocusIds = ids || []; if(graphData.nodes.length) renderGraph(); }
   function applyFocus(){
     if(!pendingFocusIds.length) return;
     var svg = $id('graph');
     pendingFocusIds.forEach(function(id){
       var c = svg.querySelector('circle[data-node="' + id + '"]');
       if(!c) return;
-      c.setAttribute('stroke', '#ea002c');
-      c.setAttribute('stroke-width', 3.5);
+      c.setAttribute('stroke', '#ea002c'); c.setAttribute('stroke-width', 3.5);
       if(!reducedMotion()){
-        var base = +c.getAttribute('r');
-        var anim = document.createElementNS(NS, 'animate');
-        anim.setAttribute('attributeName', 'r');
-        anim.setAttribute('values', base + ';' + (base + 4) + ';' + base);
-        anim.setAttribute('dur', '1.1s');
-        anim.setAttribute('repeatCount', '3');
-        c.appendChild(anim);
+        var anim = document.createElementNS(NS, 'animate'), base = +c.getAttribute('r');
+        anim.setAttribute('attributeName', 'r'); anim.setAttribute('values', base + ';' + (base + 4) + ';' + base);
+        anim.setAttribute('dur', '1.1s'); anim.setAttribute('repeatCount', '3'); c.appendChild(anim);
       }
     });
     pendingFocusIds = [];
   }
 
-  /* ── 조사된 주제 · 기사 목록 ── */
-  function renderKeywords(){
-    var box = $id('kwList');
-    var researched = graphData.nodes.filter(function(n){ return n.touch_count > 0; })
-      .sort(function(a, b){ return b.query_count - a.query_count || b.touch_count - a.touch_count; })
-      .slice(0, 8);
-    if(!researched.length){
-      box.innerHTML = '<div class="note">아직 조사 이력이 없습니다. ‘근거형 챗봇 → 지식 · 동향’ 모드로 질문하면 이곳에 쌓입니다.</div>';
-      return;
-    }
-    box.innerHTML = researched.map(function(n){
-      return '<span class="kw"><b>' + esc(n.label) + '</b><span class="n">조사 ' + n.query_count + '회 · 기사 ' + n.article_count + '</span></span>';
-    }).join('');
+  function loadKnowledgeGraph(){
+    return API.get('/api/insight/graph').then(function(g){
+      knowledgeGraph = g; renderResearchKeywords(); rebuildGraph();
+    }).catch(function(e){
+      knowledgeGraph = {nodes:[], edges:[], articles:{}};
+      $id('kwList').innerHTML = '<span style="font-size:12.5px; color:var(--text-muted);">챗봇 조사 이력을 불러오지 못했습니다: ' + esc(e.message) + '</span>';
+      rebuildGraph();
+    });
   }
-  function renderArticles(){
-    var box = $id('artList');
-    var arts = Object.keys(graphData.articles || {}).map(function(h){ return graphData.articles[h]; });
-    arts.sort(function(a, b){ return (b.date || '').localeCompare(a.date || ''); });
-    if(!arts.length){
-      box.innerHTML = '<div class="note">수집된 기사가 없습니다. 챗봇 조사가 진행되면 이곳에 공개 기사가 쌓입니다.</div>';
-      return;
-    }
-    box.innerHTML = arts.slice(0, 8).map(function(a){
-      var title = a.url
-        ? '<a href="' + esc(a.url) + '" target="_blank" rel="noopener noreferrer" style="color:inherit; text-decoration:none;">' + esc(a.title) + '</a>'
-        : esc(a.title);
-      return '<div class="art"><div class="t">' + title + '</div>' +
-        '<div class="m"><span class="pill news">' + esc(a.source || '뉴스') + '</span>' +
-        '<span>' + esc(a.date || '날짜 미상') + '</span></div></div>';
-    }).join('');
+
+  var bound = false;
+  function bind(){
+    if(bound) return; bound = true;
+    $id('insSearchBtn').onclick = function(){ searchDirect(); };
+    $id('insQuery').addEventListener('keydown', function(e){ if(e.key === 'Enter') searchDirect(); });
+    $id('insReportSel').onchange = function(){ loadForReport(this.value); };
+    $id('insRefreshBtn').onclick = function(){ loadForReport($id('insReportSel').value, true); };
   }
 
   return {
-    focus: focus,
-    load: function(){
-      API.get('/api/insight/graph').then(function(g){
-        graphData = g;
-        graphLoaded = true;
-        renderKeywords();
-        renderArticles();
-        render();
-      }).catch(function(e){
-        $id('kwList').innerHTML = '<div class="note">그래프를 불러오지 못했습니다 — ' + esc(e.message) + '</div>';
+    focus:focus,
+    load:function(){
+      bind();
+      loadKnowledgeGraph();
+      var sel = $id('insReportSel'), keep = sel.value;
+      API.get('/api/reports').then(function(r){
+        reports = r;
+        sel.innerHTML = reports.map(function(x){ return '<option value="' + x.id + '">' + esc(x.name) + '</option>'; }).join('');
+        if(!reports.length){
+          renderReportKeywords([]);
+          renderArticles([], '업로드된 보고서가 없습니다. 위 검색창에 키워드를 직접 입력하세요.');
+          reportGraph = null; rebuildGraph(); return;
+        }
+        if(keep && reports.some(function(x){ return x.id === keep; })){
+          sel.value = keep;
+          if(loadedOnce) return;
+        }
+        loadedOnce = true; loadForReport(sel.value);
       });
     }
   };

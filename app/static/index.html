@@ -111,10 +111,12 @@
     <div class="grid g32" style="margin-bottom:14px;">
       <div class="card">
         <h3>보고서별 제출 · 처리 현황</h3>
-        <table>
-          <thead><tr><th>보고서</th><th>제출</th><th>처리 상태</th><th class="num">오류</th><th class="num">제출 시각</th></tr></thead>
-          <tbody id="dashTable"></tbody>
-        </table>
+        <div class="scroll-x">
+          <table style="min-width:460px;">
+            <thead><tr><th>보고서</th><th>제출</th><th>처리 상태</th><th class="num">오류</th><th class="num">제출 시각</th></tr></thead>
+            <tbody id="dashTable"></tbody>
+          </table>
+        </div>
         <div id="dashEmpty" style="display:none;">
           <div class="note">업로드된 보고서가 없습니다.</div>
           <div style="margin-top:12px;"><button class="btn ghost" onclick="goTo('s2')">업로드 화면으로 이동</button></div>
@@ -165,9 +167,17 @@
         <div class="filelist" id="fileList"></div>
       </div>
       <div class="card">
-        <h3>적용 중인 양식 기준 <span class="sub">standard_rules.yaml</span></h3>
+        <h3>적용 중인 양식 기준 <span class="sub" id="ruleSource">standard_rules.yaml</span></h3>
         <ul class="rulelist" id="ruleList"></ul>
-        <div class="note">기준은 config/standard_rules.yaml 규칙 파일로 정의합니다. 값은 보고양식_Sample_4팀.pptx 실측 스펙입니다.</div>
+        <div id="ruleEditor" style="display:none;"></div>
+        <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
+          <button class="btn ghost" id="ruleEditBtn">기준 직접 수정</button>
+          <button class="btn ghost" id="ruleTplBtn">양식 PPTX로 교체</button>
+          <button class="btn ghost" id="ruleResetBtn">기본값 복원</button>
+          <input type="file" id="ruleTplInput" accept=".pptx" style="display:none;">
+        </div>
+        <div class="prog-label" id="ruleStatus" style="margin-top:10px;"></div>
+        <div class="note">기준을 바꾸면 이후 양식 검사와 PPT 생성에 바로 반영됩니다. 새 양식 PPTX를 올리면 글꼴·크기·표 규격을 자동으로 실측해 기준을 갱신합니다.</div>
       </div>
     </div>
 
@@ -257,6 +267,25 @@
         <h3>편집 캔버스 <span class="sub" id="edPageInfo"></span></h3>
         <div class="ed-canvas" id="edCanvas"></div>
         <div class="prog-label" id="edStatus" style="margin-top:10px;"></div>
+
+        <h3 style="margin-top:20px;">이 페이지 양식 오류 <span class="sub" id="edIssueCount"></span></h3>
+        <ul class="fixlist" id="edIssueList"></ul>
+        <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+          <button class="btn ghost" id="edFixPageBtn">이 페이지 자동 수정</button>
+          <button class="btn ghost" id="edFixAllBtn">전체 자동 수정</button>
+          <button class="btn ghost" id="edRestorePageBtn">이 페이지 원문 복원</button>
+          <button class="btn ghost" id="edRestoreAllBtn">전체 원문 복원</button>
+        </div>
+
+        <div id="edPreviewBox" style="display:none; margin-top:16px;">
+          <div class="pane-label"><span class="tag orig">수정 전</span> → <span class="tag fixd">수정 후</span>
+            <span class="sub" id="edPreviewCount"></span></div>
+          <div id="edPreviewList" class="scroll-x"></div>
+          <div style="display:flex; gap:8px; margin-top:12px;">
+            <button class="btn primary" id="edApplyFixBtn">이대로 적용</button>
+            <button class="btn ghost" id="edCancelFixBtn">취소</button>
+          </div>
+        </div>
       </div>
       <div class="card" style="padding:18px 16px;">
         <h3>개체 속성 <span class="sub" id="edSelLabel"></span></h3>
@@ -268,10 +297,10 @@
         </div>
         <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">
           <label style="font-size:11px; color:var(--text-muted);">한글 글꼴
-            <select class="ed-field" id="edFont">
-              <option value="나눔스퀘어">나눔스퀘어</option>
-              <option value="나눔스퀘어 ExtraBold">나눔스퀘어 ExtraBold</option>
-            </select>
+            <select class="ed-field" id="edFont"></select>
+          </label>
+          <label style="font-size:11px; color:var(--text-muted);">영문 글꼴
+            <select class="ed-field" id="edFontLatin"></select>
           </label>
           <label style="font-size:11px; color:var(--text-muted);">글자 크기 (pt)<input type="number" step="0.5" class="ed-field" id="edSize"></label>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
@@ -291,6 +320,11 @@
           <button class="btn ghost" id="edResetPageBtn">현재 페이지 초기화</button>
           <button class="btn ghost" id="edResetAllBtn">전체 초기화</button>
         </div>
+
+        <div class="note" id="edFontNote" style="display:none;"></div>
+
+        <h3 style="margin-top:22px;">내용 편집 <span class="sub" id="edTextLabel"></span></h3>
+        <div id="edTextPanel"></div>
       </div>
     </div>
   </section>
@@ -351,25 +385,37 @@
         <h1>동향 인사이트</h1>
         <p>‘지식 · 동향’ 챗봇으로 조사한 검색어와 공개 뉴스가 누적되는 팀 조사 지식맵입니다</p>
       </div>
-      <span class="demo-badge">DEMO · 예시 데이터 8개 포함</span>
+      <span class="demo-badge">실제 뉴스 검색 · 팀 조사 지식맵</span>
     </div>
 
     <div class="card" style="margin-bottom:14px;">
-      <h3>조사된 주제 <span class="sub">검색어 기준 · 챗봇 질문이 쌓일수록 늘어납니다</span></h3>
-      <div id="kwList"></div>
+      <h3>보고서 키워드·뉴스 검색 <span class="sub" id="insKwSub">보고서에서 자동 추출 · 클릭하면 해당 키워드로 검색</span></h3>
+      <div class="selrow" style="margin-bottom:12px;">
+        <select id="insReportSel"></select>
+        <input id="insQuery" placeholder="직접 검색: 예) 전고체 배터리"
+          style="flex:1; min-width:180px; font:inherit; font-size:13px; padding:9px 14px; border:1px solid var(--baseline); border-radius:11px; background:#fff; color:var(--text-primary); box-shadow:var(--shadow-sm);">
+        <button class="btn primary" id="insSearchBtn">검색</button>
+        <button class="btn ghost" id="insRefreshBtn">지금 새로고침</button>
+      </div>
+      <div id="insKeywords"></div>
+      <div class="prog-label" id="insFetchInfo" style="margin-top:10px;"></div>
+      <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--grid);">
+        <h3 style="margin-bottom:10px;">챗봇으로 조사된 주제 <span class="sub">질문이 쌓일수록 늘어납니다</span></h3>
+        <div id="kwList"></div>
+      </div>
     </div>
 
     <div class="grid g2">
       <div class="card">
-        <h3>수집된 공개 기사 <span class="sub">최신순 · 조사 과정에서 수집</span></h3>
+        <h3>관련 공개 기사 <span class="sub" id="insArtSub">관련도순 · 조사 과정에서 수집</span></h3>
         <div id="artList"></div>
       </div>
       <div class="card">
-        <h3>조사 지식맵 <span class="sub">기업 – 기술 · 조사 이력 기반</span></h3>
-        <svg id="graph" viewBox="0 0 520 360" width="100%" role="img" aria-label="조사 이력 기반 기업과 기술의 관계 그래프"></svg>
+        <h3>기업·기술 조사 지식맵 <span class="sub" id="insGraphSub">보고서 키워드·챗봇 조사 기반</span></h3>
+        <svg id="graph" viewBox="0 0 520 360" width="100%" role="img" aria-label="기업·기관과 기술의 관계 그래프"></svg>
         <div class="legend-inline">
           <span><i class="lg-dot" style="background:#ea002c"></i>우리 사업</span>
-          <span><i class="lg-dot" style="background:#f47725"></i>기업</span>
+          <span><i class="lg-dot" style="background:#f47725"></i>기업·기관</span>
           <span><i class="lg-dot" style="background:#1baf7a"></i>기술</span>
           <span>─ 근거 추출 관계</span>
           <span>┄ 함께 언급 (관계 미확정)</span>

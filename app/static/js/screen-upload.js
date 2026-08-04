@@ -1,11 +1,14 @@
-/* ② 업로드 · 취합 — 실제 업로드(XHR 진행률·드래그앤드롭) + /api/merge 연동 */
+/* ② 업로드 · 취합 — 실제 업로드(XHR 진행률·드래그앤드롭) + /api/merge 연동
+   + 양식 기준 직접 수정 · 기준 양식 PPTX 교체 */
 Screens.s2 = (function(){
-  var rulesLoaded = false;
   var reports = [];
   var merging = false;
+  var rules = null;
+  var editingRules = false;
 
   var STEP_UPLOAD = 0, STEP_CHECK = 1, STEP_LAYOUT = 2, STEP_MERGE = 3;
 
+  function $id(x){ return document.getElementById(x); }
   function steps(){ return document.querySelectorAll('#pipeSteps .step'); }
   function setStep(idx, state){
     var el = steps()[idx];
@@ -21,38 +24,155 @@ Screens.s2 = (function(){
     }
   }
   function setProgress(pct, label){
-    document.getElementById('mergeFill').style.width = pct + '%';
-    var lab = document.getElementById('mergeLabel');
+    $id('mergeFill').style.width = pct + '%';
+    var lab = $id('mergeLabel');
     lab.textContent = label;
     lab.style.color = ''; lab.style.fontWeight = '';
   }
 
-  /* ── 양식 기준 카드: standard_rules.yaml 렌더링 ── */
-  function renderRules(){
-    if(rulesLoaded) return;
-    API.get('/api/rules').then(function(r){
-      var levels = (r.body_levels || []).map(function(l){ return l.size; }).join('/');
-      var bullets = (r.body_levels || []).map(function(l){ return (l.bullet || '').split(':').pop(); }).join('</code> → <code>');
-      var t = r.table || {}, f = r.fonts || {};
-      var rows = [
-        ['글꼴', '영문 <code>' + esc(f.latin || '') + '</code> · 한글 <code>' + esc(f.korean || '') + '</code> · 제목 <code>' + esc(f.heading_korean || '') + '</code>'],
-        ['제목', (r.title && r.title.font_size) + 'pt Bold, 좌상단 고정 좌표'],
-        ['본문', '5단계 ' + levels + 'pt, 글머리 <code>' + bullets + '</code>'],
-        ['표', '좌 ' + (t.x_in * 2.54).toFixed(2) + 'cm · 폭 ' + (t.width_in * 2.54).toFixed(2) + 'cm 고정, 헤더 <code>' + esc(t.header_fill || '') + '</code> ' + t.header_font_size + 'pt'],
-        ['각주', ((r.footnote || {}).font_size) + 'pt, 하단 고정'],
-        ['정리', '빈 텍스트상자 제거 · 연속 공백 1칸 축소'],
-        ['이어지는 장', esc((r.continuation || {}).rule || '')]
-      ];
-      document.getElementById('ruleList').innerHTML = rows.map(function(row){
-        return '<li><span class="rk">' + row[0] + '</span><span>' + row[1] + '</span></li>';
-      }).join('');
-      rulesLoaded = true;
-    }).catch(function(){});
+  /* ── 양식 기준: 보기 모드 ── */
+  function renderRuleView(){
+    var levels = (rules.body_levels || []);
+    var sizes = levels.map(function(l){ return l.size; }).join('/');
+    var bullets = levels.map(function(l){ return esc((l.bullet || '').split(':').pop()); }).join('</code> → <code>');
+    var t = rules.table || {}, f = rules.fonts || {}, fr = rules.frame || {};
+    var rows = [
+      ['글꼴', '영문 <code>' + esc(f.latin || '') + '</code> · 한글 <code>' + esc(f.korean || '') + '</code> · 제목 <code>' + esc(f.heading_korean || '') + '</code>'],
+      ['제목', ((rules.title || {}).font_size) + 'pt' + ((rules.title || {}).bold ? ' Bold' : '')],
+      ['본문', levels.length + '단계 ' + sizes + 'pt, 글머리 <code>' + bullets + '</code>'],
+      ['표', '좌 ' + (t.x_in * 2.54).toFixed(2) + 'cm · 폭 ' + (t.width_in * 2.54).toFixed(2) + 'cm 고정, 헤더 <code>' + esc(t.header_fill || '') + '</code> ' + t.header_font_size + 'pt'],
+      ['프레임', '헤더 <code>' + esc(fr.header_fill || '') + '</code> ' + fr.header_font_size + 'pt, 테두리 <code>' + esc(fr.border_color || '') + '</code>'],
+      ['각주', ((rules.footnote || {}).font_size) + 'pt, 하단 고정'],
+      ['정리', ((rules.cleanup || {}).remove_empty_textbox ? '빈 텍스트상자 제거' : '빈 상자 유지') + ' · ' +
+               ((rules.cleanup || {}).collapse_spaces ? '연속 공백 1칸 축소' : '공백 유지')]
+    ];
+    $id('ruleList').innerHTML = rows.map(function(row){
+      return '<li><span class="rk">' + row[0] + '</span><span>' + row[1] + '</span></li>';
+    }).join('');
+    $id('ruleList').style.display = '';
+    $id('ruleEditor').style.display = 'none';
+    $id('ruleEditBtn').textContent = '기준 직접 수정';
+    editingRules = false;
+  }
+
+  /* ── 양식 기준: 편집 모드 ── */
+  function field(label, id, value, type, extra){
+    return '<label style="font-size:11px; color:var(--text-muted); display:block;">' + label +
+      '<input class="ed-field" id="' + id + '" type="' + (type || 'text') + '" ' + (extra || '') +
+      ' value="' + esc(value == null ? '' : value) + '"></label>';
+  }
+  function renderRuleEdit(){
+    var f = rules.fonts || {}, t = rules.table || {}, fr = rules.frame || {};
+    var levels = rules.body_levels || [];
+    var html = '';
+    html += '<div class="rule-fields">' +
+      field('영문 글꼴', 'rfLatin', f.latin) +
+      field('한글 글꼴', 'rfKorean', f.korean) +
+      field('제목 한글 글꼴', 'rfHeading', f.heading_korean) +
+      field('제목 크기(pt)', 'rfTitleSize', (rules.title || {}).font_size, 'number', 'step="0.5" min="5" max="60"') +
+      '</div>';
+    html += '<div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">본문 단계별 글자 크기(pt)</div>' +
+      '<div class="rule-levels">' +
+      levels.map(function(l, i){
+        return '<label style="font-size:11px; color:var(--text-muted);">' + (i + 1) + '단계' +
+          '<input class="ed-field" id="rfLv' + i + '" type="number" step="0.5" min="5" max="60" value="' + l.size + '"></label>';
+      }).join('') + '</div>';
+    html += '<div class="rule-fields">' +
+      field('표 헤더 크기(pt)', 'rfTblHead', t.header_font_size, 'number', 'step="0.5" min="5" max="60"') +
+      field('표 본문 크기(pt)', 'rfTblBody', t.body_font_size, 'number', 'step="0.5" min="5" max="60"') +
+      field('각주 크기(pt)', 'rfFoot', (rules.footnote || {}).font_size, 'number', 'step="0.5" min="5" max="60"') +
+      field('프레임 헤더 크기(pt)', 'rfFrameSize', fr.header_font_size, 'number', 'step="0.5" min="5" max="60"') +
+      '</div>';
+    html += '<div class="rule-colors">' +
+      '<label style="font-size:11px; color:var(--text-muted);">표 헤더색<input class="ed-field" id="rfTblFill" type="color" style="padding:4px; height:38px;" value="' + esc(t.header_fill || '#DCE6F2') + '"></label>' +
+      '<label style="font-size:11px; color:var(--text-muted);">프레임 헤더색<input class="ed-field" id="rfFrameFill" type="color" style="padding:4px; height:38px;" value="' + esc(fr.header_fill || '#B7D3EE') + '"></label>' +
+      '<label style="font-size:11px; color:var(--text-muted);">테두리색<input class="ed-field" id="rfBorder" type="color" style="padding:4px; height:38px;" value="' + esc(fr.border_color || '#7F7F7F') + '"></label>' +
+      '</div>';
+    var c = rules.cleanup || {};
+    html += '<div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px;">' +
+      '<label style="font-size:13px; display:flex; align-items:center; gap:7px;"><input type="checkbox" id="rfEmpty" ' + (c.remove_empty_textbox ? 'checked' : '') + ' style="accent-color:var(--accent); width:15px; height:15px;">빈 텍스트상자 제거</label>' +
+      '<label style="font-size:13px; display:flex; align-items:center; gap:7px;"><input type="checkbox" id="rfSpace" ' + (c.collapse_spaces ? 'checked' : '') + ' style="accent-color:var(--accent); width:15px; height:15px;">연속 공백 축소</label>' +
+      '</div>';
+    html += '<div style="display:flex; gap:8px;"><button class="btn primary" id="rfSave">기준 저장</button>' +
+      '<button class="btn ghost" id="rfCancel">취소</button></div>';
+
+    $id('ruleEditor').innerHTML = html;
+    $id('ruleEditor').style.display = '';
+    $id('ruleList').style.display = 'none';
+    $id('ruleEditBtn').textContent = '편집 닫기';
+    editingRules = true;
+
+    $id('rfSave').onclick = saveRules;
+    $id('rfCancel').onclick = renderRuleView;
+  }
+
+  function num(id, fallback){
+    var v = parseFloat($id(id).value);
+    return isNaN(v) ? fallback : v;
+  }
+  function saveRules(){
+    var next = JSON.parse(JSON.stringify(rules));
+    next.fonts = next.fonts || {};
+    next.fonts.latin = $id('rfLatin').value.trim();
+    next.fonts.korean = $id('rfKorean').value.trim();
+    next.fonts.heading_korean = $id('rfHeading').value.trim() || next.fonts.korean;
+    next.title = next.title || {};
+    next.title.font_size = num('rfTitleSize', 24);
+    (next.body_levels || []).forEach(function(l, i){
+      if($id('rfLv' + i)) l.size = num('rfLv' + i, l.size);
+    });
+    next.table = next.table || {};
+    next.table.header_font_size = num('rfTblHead', 10.5);
+    next.table.body_font_size = num('rfTblBody', 10);
+    next.table.header_fill = $id('rfTblFill').value.toUpperCase();
+    next.footnote = next.footnote || {};
+    next.footnote.font_size = num('rfFoot', 8);
+    next.frame = next.frame || {};
+    next.frame.header_font_size = num('rfFrameSize', 14);
+    next.frame.header_fill = $id('rfFrameFill').value.toUpperCase();
+    next.frame.border_color = $id('rfBorder').value.toUpperCase();
+    next.cleanup = next.cleanup || {};
+    next.cleanup.remove_empty_textbox = $id('rfEmpty').checked;
+    next.cleanup.collapse_spaces = $id('rfSpace').checked;
+
+    $id('ruleStatus').textContent = '저장 중…';
+    API.put('/api/rules', { rules: next }).then(function(res){
+      rules = res.rules;
+      renderRuleView();
+      $id('ruleStatus').textContent = '양식 기준을 저장했습니다. 다음 검사와 PPT 생성부터 적용됩니다.';
+    }).catch(function(e){
+      $id('ruleStatus').textContent = '저장 실패: ' + e.message;
+    });
+  }
+
+  function loadRules(){
+    return Promise.all([API.get('/api/rules'), API.get('/api/template')]).then(function(res){
+      rules = res[0];
+      var tpl = res[1];
+      $id('ruleSource').textContent = tpl.is_default
+        ? 'standard_rules.yaml · 기본 양식' : 'standard_rules.yaml · ' + tpl.name;
+      if(!editingRules) renderRuleView();
+    });
+  }
+
+  function uploadTemplate(file){
+    $id('ruleStatus').textContent = '양식 PPTX에서 기준을 추출하는 중…';
+    var form = new FormData();
+    form.append('file', file);
+    fetch('/api/template/upload', { method: 'POST', body: form })
+      .then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error((d.detail && (d.detail.message || d.detail)) || '실패'); return d; }); })
+      .then(function(d){
+        rules = d.rules;
+        renderRuleView();
+        loadRules();
+        $id('ruleStatus').textContent = '기준 양식을 ' + d.template + ' 로 교체했습니다.';
+      })
+      .catch(function(e){ $id('ruleStatus').textContent = '교체 실패: ' + e.message; });
   }
 
   /* ── 파일 목록 ── */
   function renderFileList(){
-    var list = document.getElementById('fileList');
+    var list = $id('fileList');
     list.innerHTML = '';
     reports.forEach(function(r){
       var chip = r.issue_count > 0
@@ -64,14 +184,12 @@ Screens.s2 = (function(){
         '<button class="btn ghost" style="padding:4px 10px; font-size:11.5px;" data-del="' + r.id + '">삭제</button></div>');
     });
     list.querySelectorAll('button[data-del]').forEach(function(b){
-      b.onclick = function(){
-        API.del('/api/reports/' + b.dataset.del).then(refresh);
-      };
+      b.onclick = function(){ API.del('/api/reports/' + b.dataset.del).then(refresh); };
     });
   }
 
   function updateMergeReady(){
-    var btn = document.getElementById('mergeBtn');
+    var btn = $id('mergeBtn');
     if(reports.length >= 2 && !merging){
       btn.classList.remove('disabled');
       setProgress(0, '대기 중 — ' + reports.length + '개 보고서가 병합 준비되었습니다');
@@ -94,7 +212,7 @@ Screens.s2 = (function(){
   /* ── 업로드: 파일당 XHR 1개, onprogress로 진행률 표시 ── */
   function uploadOne(file){
     return new Promise(function(resolve){
-      var list = document.getElementById('fileList');
+      var list = $id('fileList');
       var el = document.createElement('div');
       el.className = 'file-item';
       el.innerHTML = '⏳<span class="fname">' + esc(file.name) + '</span>' +
@@ -153,12 +271,11 @@ Screens.s2 = (function(){
   function runMerge(){
     if(merging || reports.length < 2) return;
     merging = true;
-    var btn = document.getElementById('mergeBtn');
-    var dl = document.getElementById('dlBtn');
+    var btn = $id('mergeBtn'), dl = $id('dlBtn');
     btn.classList.add('disabled');
     dl.classList.add('disabled'); dl.classList.remove('primary'); dl.classList.add('ghost');
     setStep(STEP_LAYOUT, 'now');
-    setProgress(15, '표준 양식 프로파일 로드 중… (보고양식_Sample_4팀.pptx)');
+    setProgress(15, '표준 양식 프로파일 로드 중…');
     var pct = 15;
     var timer = setInterval(function(){
       pct = Math.min(85, pct + 6);
@@ -176,8 +293,8 @@ Screens.s2 = (function(){
       clearInterval(timer);
       setStep(STEP_LAYOUT, 'done'); setStep(STEP_MERGE, 'done');
       var name = decodeURIComponent(d.download.split('/').pop());
-      document.getElementById('mergeFill').style.width = '100%';
-      var lab = document.getElementById('mergeLabel');
+      $id('mergeFill').style.width = '100%';
+      var lab = $id('mergeLabel');
       lab.textContent = '✅ 통합본 생성 완료 — ' + name + ' (' + d.slide_count + '슬라이드)';
       lab.style.color = 'var(--good-text)'; lab.style.fontWeight = '600';
       dl.classList.remove('disabled', 'ghost'); dl.classList.add('primary');
@@ -196,8 +313,7 @@ Screens.s2 = (function(){
   var bound = false;
   function bind(){
     if(bound) return; bound = true;
-    var dz = document.getElementById('dz');
-    var input = document.getElementById('fileInput');
+    var dz = $id('dz'), input = $id('fileInput');
     dz.onclick = function(){ input.click(); };
     input.onchange = function(){ uploadFiles(input.files); input.value = ''; };
     ['dragenter', 'dragover'].forEach(function(n){
@@ -207,13 +323,27 @@ Screens.s2 = (function(){
       dz.addEventListener(n, function(e){ e.preventDefault(); dz.classList.remove('drag'); });
     });
     dz.addEventListener('drop', function(e){ uploadFiles(e.dataTransfer.files); });
-    document.getElementById('mergeBtn').onclick = runMerge;
+    $id('mergeBtn').onclick = runMerge;
+
+    $id('ruleEditBtn').onclick = function(){ editingRules ? renderRuleView() : renderRuleEdit(); };
+    $id('ruleTplBtn').onclick = function(){ $id('ruleTplInput').click(); };
+    $id('ruleTplInput').onchange = function(){
+      if(this.files && this.files[0]) uploadTemplate(this.files[0]);
+      this.value = '';
+    };
+    $id('ruleResetBtn').onclick = function(){
+      $id('ruleStatus').textContent = '기본 양식으로 되돌리는 중…';
+      API.post('/api/template/reset').then(function(d){
+        rules = d.rules; renderRuleView(); loadRules();
+        $id('ruleStatus').textContent = '기본 양식(' + d.template + ')으로 복원했습니다.';
+      }).catch(function(e){ $id('ruleStatus').textContent = '복원 실패: ' + e.message; });
+    };
   }
 
   return {
     load: function(){
       bind();
-      renderRules();
+      loadRules();
       refresh();
     }
   };

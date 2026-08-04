@@ -459,3 +459,88 @@ select {
   padding: 8px 12px; border-radius: 11px; border: 1px solid var(--baseline);
   background:#fff; color: var(--text-primary); box-shadow: var(--shadow-sm);
 }
+/* 캔버스 안에서 텍스트 직접 편집 */
+.ed-obj[contenteditable="true"] { cursor: text; outline: 2px solid var(--accent); background: var(--accent-soft); }
+.ed-line { border-radius: 3px; padding: 0 1px; }
+.ed-line:hover { background: var(--accent-soft); cursor: text; }
+.ed-line.editing { outline: 1.5px solid var(--accent); background: #fff; }
+
+/* 표 등 넓은 콘텐츠는 카드 안에서만 가로 스크롤 */
+.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* 그리드·플렉스 자식의 기본 min-width:auto 가 내용 폭만큼 트랙을 넓혀 페이지를 밀어낸다 */
+.grid > *, .card, .main, .selrow > * { min-width: 0; }
+/* 플렉스 안의 입력 요소도 기본 min-width 때문에 줄어들지 않는다 */
+input, textarea, select { min-width: 0; max-width: 100%; }
+
+/* 양식 기준 편집 폼 */
+.rule-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.rule-levels { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
+.rule-colors { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+
+/* ── 반응형 ─────────────────────────────────────────────── */
+@media (max-width: 1180px){
+  .main { padding: 28px 28px 48px; }
+  .ed-grid { grid-template-columns: 170px 1fr 230px; }
+}
+@media (max-width: 1080px){
+  .ed-grid { grid-template-columns: 1fr; }
+  .bar-row { grid-template-columns: 96px 1fr 30px; }
+  .axis-note { padding-left: 106px; }
+}
+@media (max-width: 900px){
+  .grid.g4, .grid.g2, .grid.g32 { grid-template-columns: 1fr; }
+  .home-grid { grid-template-columns: repeat(2, minmax(0, 196px)); }
+  .card { padding: 18px 18px; border-radius: 16px; }
+  .topbar h1 { font-size: 20px; }
+  .tile .value { font-size: 27px; }
+  .donut-wrap { flex-wrap: wrap; gap: 16px; }
+}
+/* 태블릿·모바일: 사이드바를 상단 가로 내비로 전환 */
+@media (max-width: 900px){
+  body { flex-direction: column; }
+  /* 폭 전환 애니메이션은 데스크톱 접기 전용 — 모바일에서는 꺼야 min-width가 즉시 풀린다 */
+  .sidebar, .sidebar.collapsed {
+    width: 100%; min-width: 0; max-width: none; height: auto;
+    position: sticky; top: 0; z-index: 40;
+    flex-direction: column; transition: none;
+  }
+  .sbar-top { padding: 14px 16px 10px; }
+  .sidebar.collapsed .sbar-top { justify-content: space-between; padding: 14px 16px 10px; }
+  .sidebar.collapsed .logo { display: block; }
+  .collapse-btn { display: none; }
+  .nav, .sidebar.collapsed .nav {
+    flex-direction: row; overflow-x: auto; gap: 6px; padding: 0 12px 12px;
+    scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav button, .sidebar.collapsed .nav button {
+    flex: none; padding: 8px 13px; gap: 8px; justify-content: flex-start;
+  }
+  .sidebar.collapsed .nav .txt { display: inline; }
+  .sidebar .foot { display: none; }
+  .main { padding: 20px 16px 40px; }
+  .topbar { margin-bottom: 18px; }
+  .home-wrap { min-height: auto; padding: 24px 0 32px; }
+  .home-wrap h2 { font-size: 24px; margin-bottom: 32px; }
+  .home-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; width: 100%; }
+  .home-card { padding: 26px 10px 22px; border-radius: 18px; }
+  .hicon { width: 52px; height: 52px; border-radius: 16px; margin-bottom: 12px; }
+  .bar-row { grid-template-columns: 86px 1fr 28px; gap: 8px; }
+  .bar-row .bl { font-size: 11.5px; }
+  .axis-note { padding-left: 0; }
+  .steps { flex-wrap: wrap; gap: 10px 0; }
+  .step { flex: 1 1 50%; }
+  .step::before { display: none; }
+  .selrow { gap: 8px; }
+  .selrow select, .selrow input { max-width: 100%; flex: 1 1 140px; }
+  .rule-fields, .rule-colors { grid-template-columns: 1fr; }
+  .rule-levels { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .fb-item { padding: 10px 12px; }
+  table { font-size: 12.5px; }
+  th, td { padding: 8px 6px; }
+}
+@media (max-width: 460px){
+  .home-grid { grid-template-columns: 1fr; }
+  .tile .value { font-size: 24px; }
+  .btn { padding: 10px 16px; font-size: 13px; }
+}
