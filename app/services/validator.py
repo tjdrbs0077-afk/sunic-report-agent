@@ -204,7 +204,8 @@ def summarize(issues: list[dict[str, Any]]) -> dict[str, Any]:
 
 # ── 규칙 파일 저장 · PPTX에서 규칙 추출 ─────────────────────────
 
-RULE_ORDER = ["canvas", "fonts", "title", "body_levels", "table", "frame", "footnote", "continuation", "cleanup"]
+RULE_ORDER = ["canvas", "fonts", "title", "body_levels", "table", "frame", "footnote",
+              "continuation", "overflow", "cleanup"]
 
 
 def save_rules(rules: dict[str, Any]) -> dict[str, Any]:
@@ -297,6 +298,8 @@ def derive_rules_from_pptx(path: Path) -> dict[str, Any]:
         "continuation": base.get("continuation") or {
             "rule": "동일 대주제가 다음 장으로 이어지면 Lv1 제목 색을 #FFFFFF 로 바꿔 숨긴다"
         },
+        # 넘침 처리 방식은 양식 PPTX에서 읽을 수 없는 운영 설정이라 기존 값을 유지한다.
+        "overflow": base.get("overflow") or {"mode": "split", "min_scale": 1.0},
         "cleanup": base.get("cleanup") or {"remove_empty_textbox": True, "collapse_spaces": True},
         "source": {"file": path.name, "extracted": True},
     }

@@ -339,6 +339,7 @@ def write_body_exact(shape, items: list[dict[str, Any]], cfg: dict[str, Any]) ->
     items, _ = fit_body_items(items, inch(shape.width), inch(shape.height), sizes)
     scale = _body_fit_scale(items, inch(shape.width), inch(shape.height), sizes)
     fitted_sizes = [max(6.0, round(x * scale, 1)) for x in sizes]
+    hidden_color = parse_hex(cfg.get("hidden_color"), "#FFFFFF")
     ea_fonts = cfg.get("level_ea_fonts", ["나눔스퀘어 ExtraBold"] * 3 + ["나눔스퀘어"] * 2)
     bolds = cfg.get("level_bold", [True, True, False, False, False])
     for i, item in enumerate(items):
@@ -350,7 +351,9 @@ def write_body_exact(shape, items: list[dict[str, Any]], cfg: dict[str, Any]) ->
         _font_xml(r, cfg.get("font_latin", "Corbel"), ea_fonts[level])
         r.font.size = Pt(fitted_sizes[level])
         r.font.bold = bool(bolds[level] if item.get("bold") is None else item.get("bold"))
-        r.font.color.rgb = parse_hex(cfg.get("text_color"), "#000000")
+        # 이어지는 장의 대주제는 흰색으로 숨긴다 (스펙 4장 연속 슬라이드 규칙).
+        # 번호·들여쓰기 체계는 그대로 유지된다.
+        r.font.color.rgb = hidden_color if item.get("hidden") else parse_hex(cfg.get("text_color"), "#000000")
 
 
 def _clear_runs(paragraph) -> None:
@@ -473,24 +476,28 @@ def apply_layout_base(prs: Presentation, cfg: dict[str, Any]) -> None:
 BODY_TABLE_GAP = 0.45
 
 
-def _limit_body_height(body, ptype: int, cfg: dict[str, Any]) -> None:
-    """본문 상자가 표 영역을 덮지 않도록 아래쪽을 잘라낸다.
+def available_body_height(ptype: int, cfg: dict[str, Any]) -> float:
+    """해당 유형에서 본문이 실제로 쓸 수 있는 세로 길이(inch).
 
-    원본 양식은 본문 개체 틀이 슬라이드 하단까지 내려와 표와 겹쳐 있다.
-    본문이 길면 글자가 표 위로 흘러 겹치므로, 표가 있는 유형은 표 상단에서 멈추게 한다.
+    표가 있는 유형은 표 상단에서 멈춘다. 원본 양식의 본문 개체 틀은
+    슬라이드 하단까지 내려와 표와 겹쳐 있기 때문이다.
     """
+    body = cfg["body"]
+    top, height = float(body["y"]), float(body["h"])
     tops: list[float] = []
     if ptype == 1:
         tops.append(float(cfg["table_type1"]["y"]))
     elif ptype == 3:
         tops.append(float(cfg["table_type3_top"]["y"]))
-    if not tops:
-        return
-    available = min(tops) - BODY_TABLE_GAP - inch(body.top)
-    if available < 0.4:
-        available = 0.4
+    if tops:
+        height = min(height, min(tops) - BODY_TABLE_GAP - top)
+    return max(0.4, round(height, 3))
+
+
+def _limit_body_height(body, ptype: int, cfg: dict[str, Any]) -> None:
+    available = available_body_height(ptype, cfg)
     if inch(body.height) > available:
-        body.height = Inches(round(available, 3))
+        body.height = Inches(available)
 
 
 def fill_slide(slide, data: dict[str, Any], slide_no: int, cfg: dict[str, Any]) -> None:
@@ -585,12 +592,108 @@ def _remove_slide_at(prs: Presentation, index: int) -> None:
     prs.slides._sldIdLst.remove(slide_id)
 
 
-def generate_report(template_path: Path, unit: dict[str, Any], slides_data: list[dict[str, Any]], out_path: Path, overrides: dict[str, Any] | None = None) -> None:
+def _overflow_policy() -> dict[str, Any]:
+    """넘침 처리 방식 — config/standard_rules.yaml 의 overflow 설정.
+
+    split  : 글자 크기를 유지하고 다음 장으로 넘긴다 (기본, 스펙의 연속 슬라이드 규칙)
+    shrink : 한 장에 다 넣되 글자를 줄인다 (이전 동작)
+    """
+    from app.services import validator
+
+    cfg = (validator.load_rules().get("overflow") or {})
+    mode = str(cfg.get("mode", "split")).lower()
+    if mode not in ("split", "shrink"):
+        mode = "split"
+    try:
+        min_scale = float(cfg.get("min_scale", 1.0))
+    except (TypeError, ValueError):
+        min_scale = 1.0
+    return {"mode": mode, "min_scale": max(MIN_BODY_SCALE, min(1.0, min_scale))}
+
+
+def _chunk_body(items: list[dict[str, Any]], width_in: float, first_h: float,
+                cont_h: float, sizes: list[float], min_scale: float) -> list[list[dict[str, Any]]]:
+    """본문을 상자에 들어갈 만큼씩 나눈다. 첫 장과 이어지는 장의 높이가 다르다."""
+    chunks: list[list[dict[str, Any]]] = []
+    rest = list(items)
+    while rest:
+        height = first_h if not chunks else cont_h
+        limit = height * 72 * 0.94
+        take = len(rest)
+        while take > 1 and _body_required_pt(rest[:take], width_in, sizes, min_scale) > limit:
+            take -= 1
+        chunks.append(rest[:take])
+        rest = rest[take:]
+        if len(chunks) >= 12:  # 안전장치 — 비정상 데이터로 무한 분할되는 것 방지
+            if rest:
+                chunks[-1].extend(rest)
+            break
+    return chunks
+
+
+def expand_for_overflow(slides_data: list[dict[str, Any]], profile: dict[str, Any],
+                        overrides: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """한 장에 안 들어가는 본문을 다음 장으로 넘겨 페이지를 늘린다.
+
+    스펙 4장의 연속 슬라이드 규칙에 따라, 이어지는 장의 Lv1(대주제) 문단은
+    흰색으로 숨겨 번호·들여쓰기 체계만 유지한다. 표·타임라인은 첫 장에만 둔다.
+    """
+    policy = _overflow_policy()
+    if policy["mode"] != "split":
+        return slides_data
+
+    expanded: list[dict[str, Any]] = []
+    for data in slides_data:
+        ptype = max(1, min(3, int(data.get("template_type", 2))))
+        cfg = effective_layout(profile, overrides, data.get("slide_number", 0))
+        body_cfg = cfg["body"]
+        sizes = [float(x) for x in body_cfg.get("level_sizes", [14, 13, 12, 11, 10])]
+        width = float(body_cfg["w"])
+        first_h = available_body_height(ptype, cfg)
+        cont_h = available_body_height(2, cfg)
+        items = data.get("body") or []
+
+        chunks = _chunk_body(items, width, first_h, cont_h, sizes, policy["min_scale"])
+        first = deepcopy(data)
+        first["body"] = chunks[0]
+        expanded.append(first)
+        if len(chunks) == 1:
+            continue
+
+        # 이어지는 장에 반복해 넣을 대주제(Lv1) 문단
+        topic = next((x for x in items if int(x.get("level", 0)) == 0), None)
+        for chunk in chunks[1:]:
+            cont = deepcopy(data)
+            cont["template_type"] = 2  # 표·타임라인 없는 본문 전용 장
+            cont.pop("table1", None); cont.pop("table2", None)
+            cont.pop("timeline", None); cont.pop("timeline_note", None)
+            body = list(chunk)
+            if topic is not None and (not body or int(body[0].get("level", 0)) != 0):
+                hidden = deepcopy(topic)
+                hidden["hidden"] = True
+                body.insert(0, hidden)
+            cont["body"] = body
+            cont["continuation"] = True
+            expanded.append(cont)
+
+    for i, data in enumerate(expanded, 1):
+        data["slide_number"] = i
+    return expanded
+
+
+def generate_report(template_path: Path, unit: dict[str, Any], slides_data: list[dict[str, Any]], out_path: Path, overrides: dict[str, Any] | None = None) -> int:
+    """표준 양식 PPTX를 만들고 실제로 생성된 장수를 돌려준다.
+
+    본문이 넘쳐 다음 장으로 나뉘면 입력 슬라이드 수보다 많아진다.
+    """
     if not template_path.exists():
         raise FileNotFoundError(f"기준 템플릿을 찾을 수 없습니다: {template_path}")
     if not slides_data:
         raise ValueError("자동 배열할 슬라이드 데이터가 없습니다.")
     prs = Presentation(template_path)
+    profile = apply_rule_fonts(exact_template_profile(template_path))
+    # 한 장에 안 들어가는 본문은 다음 장으로 넘긴다 (글자 크기 유지).
+    slides_data = expand_for_overflow(slides_data, profile, overrides)
     # 앞 3장은 출력 위치가 아니라 유형별 원본 패턴이다. 들어오는 슬라이드마다
     # 해당 패턴을 복제한 뒤 원본 샘플 3장을 제거한다.
     source_count = len(prs.slides)
@@ -601,7 +704,6 @@ def generate_report(template_path: Path, unit: dict[str, Any], slides_data: list
         clone_slide(prs, source_type - 1)
     for _ in range(source_count):
         _remove_slide_at(prs, 0)
-    profile = apply_rule_fonts(exact_template_profile(template_path))
     global_cfg = effective_layout(profile, overrides, 0)
     apply_layout_base(prs, global_cfg)
     for i, data in enumerate(slides_data, 1):
@@ -612,6 +714,7 @@ def generate_report(template_path: Path, unit: dict[str, Any], slides_data: list
     tmp = out_path.with_suffix(".tmp.pptx")
     prs.save(tmp)
     tmp.replace(out_path)
+    return len(slides_data)
 
 
 def append_slide_from_source(dest: Presentation, source_slide, layout_index: int = 11) -> None:
