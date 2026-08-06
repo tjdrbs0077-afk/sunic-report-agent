@@ -55,29 +55,42 @@ KOREAN_OPTIONS = ["나눔스퀘어", "나눔스퀘어 ExtraBold", "나눔고딕"
 
 
 def _installed_fonts() -> set[str] | None:
-    """설치된 글꼴 이름. 확인할 수 없는 환경(비 Windows 서버 등)에서는 None."""
+    """설치된 글꼴 이름. 확인할 수 없는 환경(비 Windows 서버 등)에서는 None.
+
+    '모든 사용자'(HKLM)와 '현재 사용자'(HKCU) 양쪽을 본다. 글꼴을 오른쪽 클릭해
+    설치하면 현재 사용자 쪽에만 등록되므로 HKLM만 보면 설치해도 미설치로 나온다.
+    """
     if sys.platform != "win32":
         return None
-    try:
-        import winreg
+    import winreg
 
-        names: set[str] = set()
-        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts")
-        count = winreg.QueryInfoKey(key)[1]
-        for i in range(count):
-            name = winreg.EnumValue(key, i)[0]
-            names.add(re.sub(r"\s*\((TrueType|OpenType)\)$", "", name).strip())
-        return names
-    except OSError:
-        return None
+    names: set[str] = set()
+    found_any = False
+    for root in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+        try:
+            key = winreg.OpenKey(root, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts")
+        except OSError:
+            continue
+        found_any = True
+        try:
+            for i in range(winreg.QueryInfoKey(key)[1]):
+                value = winreg.EnumValue(key, i)
+                names.add(re.sub(r"\s*\((TrueType|OpenType)\)$", "", value[0]).strip())
+                # 등록 이름이 한글이어도 파일명으로 한 번 더 찾을 수 있게 파일명도 넣는다
+                file_name = str(value[1] or "")
+                if file_name:
+                    names.add(Path(file_name).stem)
+        finally:
+            key.Close()
+    return names if found_any else None
 
 
 # 한글 글꼴은 레지스트리에 영문 이름으로 등록돼 있어 별칭으로 함께 찾는다
 FONT_ALIASES = {
     "맑은 고딕": ["Malgun Gothic"],
     "나눔고딕": ["NanumGothic"],
-    "나눔스퀘어": ["NanumSquare"],
-    "나눔스퀘어 ExtraBold": ["NanumSquareExtraBold", "NanumSquare ExtraBold"],
+    "나눔스퀘어": ["NanumSquare", "NanumSquareR"],
+    "나눔스퀘어 ExtraBold": ["NanumSquareExtraBold", "NanumSquare ExtraBold", "NanumSquareEB"],
     "바탕": ["Batang"],
     "굴림": ["Gulim"],
     "돋움": ["Dotum"],

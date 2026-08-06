@@ -47,14 +47,17 @@ def generate(req: GenerateRequest):
     if overrides is None:
         overrides = store.load_layouts().get(req.report_id, {})
     suffix = "_편집본" if has_edits(overrides) else "_자동배열본"
-    out = config.GENERATED / f"{slug(unit['name'])}_{len(slides)}p{suffix}.pptx"
+    tmp_out = config.GENERATED / f"{slug(unit['name'])}{suffix}.tmp-out.pptx"
     try:
-        generate_report(config.active_template(), unit, slides, out, overrides)
+        made = generate_report(config.active_template(), unit, slides, tmp_out, overrides)
     except Exception as exc:
         raise HTTPException(500, f"PPT 자동 배열 중 오류가 발생했습니다: {type(exc).__name__}: {exc}") from exc
-    if not out.exists() or out.stat().st_size < 1000:
+    if not tmp_out.exists() or tmp_out.stat().st_size < 1000:
         raise HTTPException(500, "PPT 파일 생성은 완료됐지만 결과 파일이 정상적으로 저장되지 않았습니다.")
-    return {"ok": True, "download": f"/generated/{out.name}", "slide_count": len(slides)}
+    # 본문이 넘쳐 다음 장으로 나뉘면 실제 장수가 늘어난다. 파일명은 실제 장수로 붙인다.
+    out = config.GENERATED / f"{slug(unit['name'])}_{made}p{suffix}.pptx"
+    tmp_out.replace(out)
+    return {"ok": True, "download": f"/generated/{out.name}", "slide_count": made, "source_slide_count": len(slides)}
 
 
 @router.post("/merge")
@@ -72,9 +75,8 @@ def merge(req: MergeRequest):
             unit, slides = payload["unit"], payload["slides"]
             path = config.GENERATED / f"_merge_{report_id}.pptx"
             overrides = layouts.get(report_id, {}) if req.include_layout_edits else {}
-            generate_report(config.active_template(), unit, slides, path, overrides)
+            total_slides += generate_report(config.active_template(), unit, slides, path, overrides)
             paths.append(path)
-            total_slides += len(slides)
         out = config.GENERATED / f"{slug(req.title)}_{len(ids)}개보고서_{total_slides}p.pptx"
         merge_reports(paths, out)
     except Exception as exc:

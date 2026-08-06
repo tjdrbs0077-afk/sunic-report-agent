@@ -10,6 +10,7 @@ from pathlib import Path
 
 APP_DIR = Path(__file__).resolve().parent
 ROOT = APP_DIR.parent
+ENV_FILE = ROOT / ".env"
 
 
 def load_env(path: Path | None = None) -> list[str]:
@@ -20,7 +21,7 @@ def load_env(path: Path | None = None) -> list[str]:
 
     반환: 읽어들인 키 이름 목록 (값은 반환하지 않는다)
     """
-    env_path = path or (ROOT / ".env")
+    env_path = path or ENV_FILE
     if not env_path.exists():
         return []
 

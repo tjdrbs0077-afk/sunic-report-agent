@@ -165,6 +165,21 @@
         </div>
         <input type="file" id="fileInput" accept=".pptx" multiple style="display:none;">
         <div class="filelist" id="fileList"></div>
+
+        <h3 style="margin-top:22px;">시연용 샘플 보고서 <span class="sub">올릴 PPT가 없을 때</span></h3>
+        <div class="selrow" style="margin-bottom:8px;">
+          <select id="demoUnitSel"></select>
+          <label style="font-size:13px; display:flex; align-items:center; gap:7px;">
+            <input type="checkbox" id="demoMessy" style="accent-color:var(--accent); width:15px; height:15px;">양식 위반 섞기
+          </label>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn ghost" id="demoOneBtn">선택 사업단 생성</button>
+          <button class="btn ghost" id="demoAllBtn">전체 사업단 생성</button>
+        </div>
+        <div class="prog-label" id="demoStatus" style="margin-top:10px;"></div>
+        <div class="note">모든 내용은 가상 데이터이며 각주에 그 사실이 표시됩니다. ‘양식 위반 섞기’를 켜면
+          비표준 글머리·연속 공백·단계 초과가 섞여 들어가, 페이지 편집의 자동 수정과 미리보기를 시연할 수 있습니다.</div>
       </div>
       <div class="card">
         <h3>적용 중인 양식 기준 <span class="sub" id="ruleSource">standard_rules.yaml</span></h3>

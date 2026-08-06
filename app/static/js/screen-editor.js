@@ -483,7 +483,8 @@ Screens.s4 = (function(){
     if(!missing.length){ note.style.display = 'none'; return; }
     note.style.display = '';
     note.innerHTML = '⚠️ <b>' + esc(missing.join(', ')) + '</b> 글꼴이 이 PC에 없습니다. ' +
-      '생성되는 PPT에는 정상으로 지정되지만, 이 PC에서 열면 다른 글꼴로 보입니다.';
+      '생성되는 PPT에는 정상으로 지정되지만, 이 PC에서 열면 다른 글꼴로 보입니다.<br>' +
+      '설치 파일: <code>app/assets/fonts/</code> — TTF를 오른쪽 클릭 → 설치';
   }
 
   function loadProps(){
