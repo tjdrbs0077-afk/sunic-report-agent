@@ -157,6 +157,9 @@ Screens.s5 = (function(){
     var chips = '<span class="chip ' + (m.path === 'llm' ? 'ok' : 'wait') + '">' +
       (m.path === 'llm' ? 'Claude 답변' : '오프라인 답변') + '</span> ' +
       '<span class="chip wait">' + esc(m.intent_label || '') + '</span>';
+    if(m.knowledge_source === 'general_background'){
+      chips += ' <span class="chip ok">일반 배경지식 포함</span>';
+    }
     if(m.sufficiency && SUFF[m.sufficiency]){
       chips += ' <span class="' + SUFF[m.sufficiency][1] + '">' + SUFF[m.sufficiency][0] + '</span>';
     }

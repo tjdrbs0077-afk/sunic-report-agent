@@ -5,7 +5,7 @@
 각 항목이 (패턴, LLM 지침, 근거 정책)을 함께 들고 있어
 chat.py 는 유형별 분기 코드를 갖지 않는다.
 
-우선순위: external > location > compare > summary > analysis > fact
+우선순위: external > background > location > compare > summary > analysis > fact
 (external 이 먼저인 이유 — "경쟁사의 최근 동향"은 비교가 아니라 외부 질문)
 """
 from __future__ import annotations
@@ -25,6 +25,20 @@ INTENTS: list[dict[str, Any]] = [
         "guidance": ("이 질문은 보고서 밖의 최신 정보를 요구합니다. 참고 뉴스가 있으면 그것으로 답하고, "
                      "보고서 내용은 배경 맥락으로만 사용하세요. 뉴스가 없으면 보고서만으로는 "
                      "답할 수 없다고 안내하세요."),
+    },
+    {
+        "name": "background",
+        "label": "개념·배경지식",
+        "pattern": re.compile(
+            r"정의|개념|원리|과학적|기술적|학술적|배경\s*지식|기초\s*지식|"
+            r"일반적으로|쉽게\s*설명|"
+            r"(?:[A-Z][A-Z0-9+\-]{1,14})\s*(?:가|은|는)?\s*(?:뭐야|무엇이야|무슨\s*뜻)"),
+        "scope": "retrieved", "top_k": 3,
+        "guidance": (
+            "보고서를 이해하는 데 필요한 개념·과학·기술·산업 배경 질문입니다. "
+            "보고서에 직접 설명이 없어도 검증된 일반 지식으로 질문에 먼저 답하세요. "
+            "일반 지식에는 보고서 페이지 인용을 붙이지 말고 '일반 배경지식'임을 명시하세요. "
+            "보고서에 관련 사업 맥락이 있으면 별도 문단에서 [p.N]으로 연결하세요."),
     },
     {
         "name": "location",

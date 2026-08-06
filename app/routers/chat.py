@@ -48,8 +48,11 @@ REPORT_SYSTEM = """당신은 사내 사업기획 보고서를 검토하고 질�
 답변 원칙:
 - 사용자의 질문 의도를 먼저 파악하고, 질문에 대한 답을 첫 문장에 제시하세요.
 - 제공된 페이지 제목이나 요약을 그대로 나열하지 마세요. 여러 근거를 종합하여 자연스럽고 구체적인 한국어 답변을 작성하세요.
-- 제공된 보고서 근거만 사용하세요. 보고서에 없는 사실·수치·페이지·관계를 만들지 마세요.
-- 각 핵심 주장 뒤에는 근거 페이지를 [p.N] 형식으로 표시하세요.
+- 보고서의 사업 내용·수치·계획을 설명할 때는 제공된 보고서 근거만 사용하고, 없는 사실·수치·페이지·관계를 만들지 마세요.
+- 개념·정의·원리·과학·기술·산업 배경을 묻는 질문에는 보고서에 직접 설명이 없어도 널리 확립된 일반 지식으로 답하세요.
+- 일반 지식으로 답한 부분은 '일반 배경지식'이라고 구분하고 [p.N] 인용을 붙이지 마세요. [p.N]은 실제 보고서 근거에만 사용하세요.
+- 배경지식 질문은 '일반적인 직접 답변 → 보고서와의 연결점(있는 경우)' 순서로 답하세요. 보고서에 없다는 이유만으로 답변을 거절하지 마세요.
+- 보고서에 근거한 각 핵심 주장 뒤에는 근거 페이지를 [p.N] 형식으로 표시하세요.
 - 분석·평가·피드백 질문에는 보고서 근거로 판단 가능한 내용을 분석하세요. 무조건 거절하지 마세요. 다만 보고서에 적힌 사실과 근거를 종합한 해석을 명확히 구분하세요. 해석에는 "보고서 근거를 종합하면" 같은 표현을 쓰세요.
 - 근거가 부족하면 부족하다고 말하고 추측하지 마세요.
 - 최신 뉴스나 외부 시장 정보처럼 보고서만으로 답할 수 없는 질문에는, 참고 뉴스가 제공된 경우 그것을 [기사 N] 인용으로 사용하고, 없으면 보고서 밖 정보가 필요하다고 안내하세요.
@@ -142,14 +145,24 @@ def _llm_prompt(question: str, mode: str, it: dict[str, Any],
                 sufficiency: dict[str, Any] | None,
                 articles: list[dict[str, Any]]) -> str:
     parts: list[str] = [f"[질문 유형] {it['label']} — {it['guidance']}"]
+    if it["name"] == "background":
+        parts.append(
+            "[배경지식 답변 정책] 보고서에 해당 정의나 원리가 없어도 답변해야 합니다. "
+            "확립된 일반 지식으로 질문에 직접 답하고, 그 부분에는 페이지 인용을 만들지 마세요. "
+            "제공된 보고서 근거는 사업 맥락을 덧붙일 때만 사용하세요.")
     if evidence:
         parts.append(f"[보고서: {report_name}]\n{evidence}")
         if sufficiency and sufficiency["level"] != "sufficient":
-            parts.append("[근거 상태] 검색된 근거가 " +
-                         ("부분적입니다. 확인되는 범위만 답하고 부족한 부분은 부족하다고 밝히세요."
-                          if sufficiency["level"] == "partial" else
-                          "질문과 직접 관련성이 낮습니다. 억지로 답하지 말고, 보고서에서 확인되지 않는다고 "
-                          "밝힌 뒤 가장 가까운 참고 내용만 안내하세요."))
+            if it["name"] == "background":
+                parts.append(
+                    "[근거 상태] 보고서 근거는 배경 개념과 직접 관련성이 낮을 수 있습니다. "
+                    "일반 배경지식 답변은 충분히 제공하고, 보고서와 실제로 연결되는 내용만 별도로 인용하세요.")
+            else:
+                parts.append("[근거 상태] 검색된 근거가 " +
+                             ("부분적입니다. 확인되는 범위만 답하고 부족한 부분은 부족하다고 밝히세요."
+                              if sufficiency["level"] == "partial" else
+                              "질문과 직접 관련성이 낮습니다. 억지로 답하지 말고, 보고서에서 확인되지 않는다고 "
+                              "밝힌 뒤 가장 가까운 참고 내용만 안내하세요."))
     if articles:
         block = "\n\n".join(
             f"[기사 {i}] {a['title']} ({a.get('source', '')} {a.get('date', '')})\n{a.get('summary', '')}"
@@ -324,7 +337,8 @@ def chat(req: ChatRequest):
     relevant = [(s, sc) for s, sc in found if sc >= MIN_SCORE]
 
     # 3) 뉴스 — 외부형 질문이거나 보고서가 없을 때만 검색어를 내보낸다
-    need_news = req.use_news and (it["name"] == "external" or not payload)
+    need_news = req.use_news and (
+        it["name"] == "external" or (not payload and it["name"] != "background"))
     query = news.extract_query(question)
     feed = (news.search_news(query, limit=5) if need_news
             else {"articles": [], "channel": "off", "sent_query": query, "error": None})
@@ -413,6 +427,7 @@ def chat(req: ChatRequest):
             "matched_terms": sufficiency["matched_terms"][:6] if sufficiency else [],
             "fallback_reason": fallback_reason,
             "evidence_scope": evidence_label,
+            "knowledge_source": "general_background" if it["name"] == "background" else "report",
         },
         "disclosure": {
             "external_call": external_call,
