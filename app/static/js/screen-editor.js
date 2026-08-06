@@ -152,6 +152,19 @@ Screens.s4 = (function(){
       'z-index:' + z + ';color:' + (c.text_color || '#000') + ';background:' + fill + ';' +
       'font-weight:' + (c.bold ? '700' : '400') + ';">' + content + '<span class="ed-handle"></span></div>';
   }
+  /* 미리보기에 표시할 글머리 — 직접 지정값이 있으면 그것, 없으면 자동번호를 흉내낸다 */
+  function bulletOf(item, index, level){
+    if(item.bullet) return item.bullet;
+    if(level > 1) return STD_BULLETS[level];
+    var body = slide().body, count = 0;
+    for(var i = 0; i <= index; i++){
+      if(Math.min(body[i].level, 4) === level) count++;
+    }
+    var start = parseInt(item.bullet_start, 10);
+    if(!isNaN(start)) count = start;   // 시작 번호를 지정한 항목
+    return level === 0 ? count + '.' : count + ')';
+  }
+
   /* 편집 가능한 텍스트 조각 — 더블클릭하면 그 자리에서 수정 */
   function editable(field, index, text){
     return '<span class="ed-line" data-field="' + field + '"' +
@@ -174,7 +187,10 @@ Screens.s4 = (function(){
     html += objHtml('body', c.body,
       s.body.map(function(x, i){
         var lv = Math.min(x.level, 4);
-        return '<div style="margin-left:' + (lv * 8) + '%;">' + STD_BULLETS[lv] + ' ' + editable('body', i, x.text) + '</div>';
+        return '<div style="margin-left:' + (lv * 8) + '%;">' +
+          '<span class="ed-line ed-bullet" data-field="bullet" data-index="' + i + '"' +
+          ' title="더블클릭하면 글머리를 바꿉니다">' + esc(bulletOf(x, i, lv)) + '</span> ' +
+          editable('body', i, x.text) + '</div>';
       }).join(''), 4);
     if(s.template_type === 1){
       html += objHtml('table_type1', c.table_type1, miniTable(s.table1), 5);
@@ -238,12 +254,16 @@ Screens.s4 = (function(){
   function applyText(field, index, text){
     var s = slide();
     var body;
-    if(field === 'body'){
+    if(field === 'body' || field === 'bullet'){
       body = clone(s.body);
-      body[index].text = text;
+      if(field === 'body'){
+        body[index].text = text;
+      }else{
+        setBullet(body[index], text, Math.min(body[index].level, 4));
+      }
     }
-    var patch = field === 'body' ? { body: body } : {};
-    if(field !== 'body') patch[field] = text;
+    var patch = (field === 'body' || field === 'bullet') ? { body: body } : {};
+    if(field !== 'body' && field !== 'bullet') patch[field] = text;
 
     pushUndoContent();
     $id('edStatus').textContent = '내용 저장 중…';
@@ -258,6 +278,19 @@ Screens.s4 = (function(){
       $id('edStatus').textContent = '저장 실패: ' + e.message;
       renderCanvas();
     });
+  }
+
+  /* 입력한 글머리를 항목에 반영한다.
+     "3." 처럼 자동번호와 같은 꼴이면 시작 번호로, 그 외에는 직접 지정 문자로 본다. */
+  function setBullet(item, value, level){
+    value = String(value || '').trim();
+    delete item.bullet;
+    delete item.bullet_start;
+    if(!value) return;                       // 비우면 양식의 자동번호를 따름
+    var auto = level === 0 ? /^(\d+)\.$/ : level === 1 ? /^(\d+)\)$/ : null;
+    var m = auto && value.match(auto);
+    if(m) item.bullet_start = parseInt(m[1], 10);
+    else item.bullet = value.slice(0, 8);
   }
 
   function changeLevel(index, delta){
@@ -296,20 +329,33 @@ Screens.s4 = (function(){
 
     if(key === 'body'){
       box.innerHTML = s.body.map(function(item, i){
+        var lv = Math.min(item.level, 4);
+        var shown = item.bullet || (item.bullet_start != null ? bulletOf(item, i, lv) : '');
         return '<div style="display:flex; gap:5px; align-items:flex-start; margin-bottom:6px;">' +
-          '<span style="font-size:10.5px; color:var(--text-muted); width:16px; padding-top:11px; flex:none;">' + (item.level + 1) + '</span>' +
+          '<input class="ed-field" data-bullet="' + i + '" value="' + esc(shown) + '"' +
+          ' placeholder="' + esc(bulletOf(item, i, lv)) + '" title="글머리 — 비우면 양식 자동번호"' +
+          ' style="width:44px; flex:none; margin-top:0; font-size:11.5px; padding:8px 6px; text-align:center;">' +
           '<textarea class="ed-field" data-i="' + i + '" rows="2" style="resize:vertical; font-weight:400; font-size:12px; margin-top:0;">' + esc(item.text) + '</textarea>' +
           '<span style="display:flex; flex-direction:column; gap:2px; flex:none;">' +
           '<button class="btn ghost" data-up="' + i + '" title="단계 올리기" style="padding:1px 6px; font-size:11px;">◂</button>' +
           '<button class="btn ghost" data-down="' + i + '" title="단계 내리기" style="padding:1px 6px; font-size:11px;">▸</button>' +
           '<button class="btn ghost" data-del="' + i + '" title="줄 삭제" style="padding:1px 6px; font-size:11px;">×</button>' +
           '</span></div>';
-      }).join('') + '<button class="btn ghost" id="edAddLine" style="width:100%; padding:7px; font-size:12px;">+ 문단 추가</button>';
+      }).join('') + '<button class="btn ghost" id="edAddLine" style="width:100%; padding:7px; font-size:12px;">+ 문단 추가</button>' +
+        '<div class="note" style="margin-top:8px;">글머리 칸을 비우면 양식의 자동번호를 씁니다. ' +
+        '<code>3.</code> 처럼 넣으면 그 번호부터 이어가고, <code>▶</code> 같은 문자는 그대로 표시됩니다.</div>';
 
       box.querySelectorAll('textarea').forEach(function(ta){
         ta.addEventListener('blur', function(){
           var i = +ta.dataset.i, text = ta.value.trim();
           if(text && text !== s.body[i].text) applyText('body', i, text);
+        });
+      });
+      box.querySelectorAll('[data-bullet]').forEach(function(input){
+        input.addEventListener('blur', function(){
+          var i = +input.dataset.bullet, item = s.body[i];
+          var current = item.bullet || (item.bullet_start != null ? bulletOf(item, i, Math.min(item.level, 4)) : '');
+          if(input.value.trim() !== current) applyText('bullet', i, input.value);
         });
       });
       box.querySelectorAll('[data-up]').forEach(function(b){ b.onclick = function(){ changeLevel(+b.dataset.up, -1); }; });

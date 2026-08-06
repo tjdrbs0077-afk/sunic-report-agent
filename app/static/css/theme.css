@@ -339,6 +339,7 @@ select {
 /* 캔버스 안에서 텍스트 직접 편집 */
 .ed-obj[contenteditable="true"] { cursor: text; outline: 2px solid var(--accent); background: var(--accent-soft); }
 .ed-line { border-radius: 3px; padding: 0 1px; }
+.ed-bullet { color: var(--accent-deep); font-weight: 700; }
 .ed-line:hover { background: var(--accent-soft); cursor: text; }
 .ed-line.editing { outline: 1.5px solid var(--accent); background: #fff; }
 

@@ -299,7 +299,7 @@ def derive_rules_from_pptx(path: Path) -> dict[str, Any]:
             "rule": "동일 대주제가 다음 장으로 이어지면 Lv1 제목 색을 #FFFFFF 로 바꿔 숨긴다"
         },
         # 넘침 처리 방식은 양식 PPTX에서 읽을 수 없는 운영 설정이라 기존 값을 유지한다.
-        "overflow": base.get("overflow") or {"mode": "split", "min_scale": 1.0},
+        "overflow": base.get("overflow") or {"mode": "zones", "min_scale": 1.0},
         "cleanup": base.get("cleanup") or {"remove_empty_textbox": True, "collapse_spaces": True},
         "source": {"file": path.name, "extracted": True},
     }

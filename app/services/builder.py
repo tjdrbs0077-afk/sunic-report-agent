@@ -330,11 +330,47 @@ def set_text_exact(shape, text: str, cfg: dict[str, Any], vertical=MSO_ANCHOR.MI
         except Exception: pass
 
 
+# 레이아웃이 자동번호를 붙이는 단계 (1. / 1))
+AUTO_NUMBER_LEVELS = (0, 1)
+
+
+def _apply_bullet(paragraph, item: dict[str, Any], level: int) -> None:
+    """단락의 글머리를 항목 설정대로 바꾼다.
+
+    bullet 값이 비어 있으면 레이아웃의 자동번호를 그대로 상속한다.
+    "3." 같은 문자열이면 자동번호를 끄고 그 문자를 글머리로 쓰고,
+    bullet_start(정수)면 자동번호를 유지한 채 시작 번호만 바꾼다.
+    """
+    bullet = str(item.get("bullet") or "").strip()
+    start = item.get("bullet_start")
+    if not bullet and start in (None, ""):
+        return  # 레이아웃 상속 (기본 동작)
+
+    pPr = paragraph._p.get_or_add_pPr()
+    for tag in ("a:buNone", "a:buChar", "a:buAutoNum"):
+        for node in pPr.findall(qn(tag)):
+            pPr.remove(node)
+
+    if bullet:
+        # 직접 지정한 글머리 — 자동번호를 끄고 문자를 그대로 쓴다.
+        node = etree.SubElement(pPr, qn("a:buChar"))
+        node.set("char", bullet)
+        return
+
+    # 시작 번호만 변경 — 자동번호는 유지한다.
+    node = etree.SubElement(pPr, qn("a:buAutoNum"))
+    node.set("type", "arabicPeriod" if level == 0 else "arabicParenR")
+    try:
+        node.set("startAt", str(max(1, int(start))))
+    except (TypeError, ValueError):
+        pPr.remove(node)
+
+
 def write_body_exact(shape, items: list[dict[str, Any]], cfg: dict[str, Any]) -> None:
     tf = shape.text_frame
     tf.clear()
     tf.word_wrap = True
-    # 원본 placeholder의 여백·위계를 유지한다. 정확한 번호/글머리 형식은 레이아웃이 정의한다.
+    # 원본 placeholder의 여백·위계를 유지한다. 글머리는 항목이 지정하지 않으면 레이아웃을 따른다.
     sizes = [float(x) for x in cfg.get("level_sizes", [14, 13, 12, 11, 10])]
     items, _ = fit_body_items(items, inch(shape.width), inch(shape.height), sizes)
     scale = _body_fit_scale(items, inch(shape.width), inch(shape.height), sizes)
@@ -347,6 +383,7 @@ def write_body_exact(shape, items: list[dict[str, Any]], cfg: dict[str, Any]) ->
         level = max(0, min(4, int(item.get("level", 0))))
         p.level = level
         p.alignment = PP_ALIGN.LEFT
+        _apply_bullet(p, item, level)
         r = p.add_run(); r.text = item.get("text", "")
         _font_xml(r, cfg.get("font_latin", "Corbel"), ea_fonts[level])
         r.font.size = Pt(fitted_sizes[level])
@@ -476,6 +513,44 @@ def apply_layout_base(prs: Presentation, cfg: dict[str, Any]) -> None:
 BODY_TABLE_GAP = 0.45
 
 
+BODY_ZONE_PAD = 0.10  # 표 아래에서 다시 시작할 때의 여백
+MIN_ZONE_HEIGHT = 0.30
+
+
+def body_zones(ptype: int, cfg: dict[str, Any]) -> list[tuple[float, float]]:
+    """본문이 쓸 수 있는 빈 구역 목록 [(y, 높이), …] — 위에서 아래 순서.
+
+    원본 양식의 본문 개체 틀은 슬라이드 하단까지 내려와 표와 겹쳐 있다.
+    표를 피해 위·사이·아래의 빈 자리를 각각 돌려주면 페이지를 늘리지 않고도
+    기준 글자 크기를 유지할 수 있다.
+    """
+    body = cfg["body"]
+    top = float(body["y"])
+    bottom = min(float(body["y"]) + float(body["h"]), float(cfg["footnote"]["y"]) - 0.05)
+
+    blocks: list[tuple[float, float]] = []
+    if ptype == 1:
+        blocks.append((float(cfg["table_type1"]["y"]), float(cfg["table_type1"]["h"])))
+        tl = cfg.get("timeline") or {}
+        if tl:
+            blocks.append((float(tl.get("y", 6.25)), float(tl.get("h", 0.82))))
+    elif ptype == 3:
+        for key in ("table_type3_top", "table_type3_bottom"):
+            blocks.append((float(cfg[key]["y"]), float(cfg[key]["h"])))
+
+    zones: list[tuple[float, float]] = []
+    cursor = top
+    for block_y, block_h in sorted(blocks):
+        height = block_y - BODY_TABLE_GAP - cursor
+        if height >= MIN_ZONE_HEIGHT:
+            zones.append((round(cursor, 3), round(height, 3)))
+        cursor = max(cursor, block_y + block_h + BODY_ZONE_PAD)
+    tail = bottom - cursor
+    if tail >= MIN_ZONE_HEIGHT:
+        zones.append((round(cursor, 3), round(tail, 3)))
+    return zones or [(top, max(MIN_ZONE_HEIGHT, bottom - top))]
+
+
 def available_body_height(ptype: int, cfg: dict[str, Any]) -> float:
     """해당 유형에서 본문이 실제로 쓸 수 있는 세로 길이(inch).
 
@@ -500,6 +575,70 @@ def _limit_body_height(body, ptype: int, cfg: dict[str, Any]) -> None:
         body.height = Inches(available)
 
 
+def _split_items_into_zones(items: list[dict[str, Any]], width_in: float,
+                            zones: list[tuple[float, float]], sizes: list[float]) -> list[list[dict[str, Any]]]:
+    """본문 항목을 위 구역부터 차례로 담는다.
+
+    자동번호가 붙는 1·2단계는 첫 구역에 모은다. 상자를 나누면 번호가 1부터
+    다시 시작하기 때문이다. 기호를 쓰는 3~5단계만 아래 구역으로 흘려보낸다.
+    """
+    buckets: list[list[dict[str, Any]]] = [[] for _ in zones]
+    if not items:
+        return buckets
+
+    index = 0
+    for zi, (_, height) in enumerate(zones):
+        limit = height * 72 * 0.94
+        last = zi == len(zones) - 1
+        while index < len(items):
+            candidate = buckets[zi] + [items[index]]
+            fits = _body_required_pt(candidate, width_in, sizes, 1.0) <= limit
+            # 번호가 붙는 단계는 쪼개지 않는다 — 다음 구역에서 번호가 1로 되돌아간다.
+            forced = (not buckets[zi]) or (int(items[index].get("level", 0)) in AUTO_NUMBER_LEVELS and zi == 0)
+            if fits or forced or last:
+                buckets[zi].append(items[index])
+                index += 1
+                continue
+            break
+        if index >= len(items):
+            break
+    return buckets
+
+
+def _fill_body_zones(slide, body, data: dict[str, Any], ptype: int, cfg: dict[str, Any]) -> None:
+    """본문을 표 사이 빈 구역에 나눠 배치한다 (overflow.mode = zones).
+
+    zones 모드가 아니면 기존처럼 첫 구역 하나만 쓴다.
+    """
+    body_cfg = cfg["body"]
+    items = data.get("body") or []
+    if _overflow_policy()["mode"] != "zones":
+        _limit_body_height(body, ptype, cfg)
+        write_body_exact(body, items, body_cfg)
+        return
+
+    zones = body_zones(ptype, cfg)
+    sizes = [float(x) for x in body_cfg.get("level_sizes", [14, 13, 12, 11, 10])]
+    width = inch(body.width)
+    buckets = _split_items_into_zones(items, width, zones, sizes)
+
+    # 첫 구역은 원본 개체 틀을 그대로 쓴다.
+    body.top = Inches(zones[0][0])
+    body.height = Inches(zones[0][1])
+    write_body_exact(body, buckets[0], body_cfg)
+
+    # 나머지 구역은 같은 서식의 텍스트 상자를 새로 만든다.
+    for (zone_y, zone_h), chunk in zip(zones[1:], buckets[1:]):
+        if not chunk:
+            continue
+        extra = slide.shapes.add_textbox(
+            Inches(float(body_cfg["x"])), Inches(zone_y),
+            Inches(float(body_cfg["w"])), Inches(zone_h),
+        )
+        extra.text_frame.word_wrap = True
+        write_body_exact(extra, chunk, body_cfg)
+
+
 def fill_slide(slide, data: dict[str, Any], slide_no: int, cfg: dict[str, Any]) -> None:
     ptype = data["template_type"]
     title = _find_title(slide)
@@ -511,8 +650,7 @@ def fill_slide(slide, data: dict[str, Any], slide_no: int, cfg: dict[str, Any]) 
     body = _find_body(slide)
     if body:
         _apply_geometry(body, cfg["body"])
-        _limit_body_height(body, ptype, cfg)
-        write_body_exact(body, data["body"], cfg["body"])
+        _fill_body_zones(slide, body, data, ptype, cfg)
 
     tables = sorted([s for s in slide.shapes if s.shape_type == MSO_SHAPE_TYPE.TABLE], key=lambda s: s.top)
     if ptype == 1 and tables:
@@ -595,15 +733,17 @@ def _remove_slide_at(prs: Presentation, index: int) -> None:
 def _overflow_policy() -> dict[str, Any]:
     """넘침 처리 방식 — config/standard_rules.yaml 의 overflow 설정.
 
-    split  : 글자 크기를 유지하고 다음 장으로 넘긴다 (기본, 스펙의 연속 슬라이드 규칙)
-    shrink : 한 장에 다 넣되 글자를 줄인다 (이전 동작)
+    zones  : 표를 피해 빈 구역(표 위·사이·아래)에 나눠 넣는다 (기본).
+             페이지 수가 늘지 않고 글자 크기도 유지된다.
+    split  : 글자 크기를 유지하고 다음 장으로 넘긴다 (스펙의 연속 슬라이드 규칙)
+    shrink : 한 장에 다 넣되 글자를 줄인다 (가장 오래된 동작)
     """
     from app.services import validator
 
     cfg = (validator.load_rules().get("overflow") or {})
-    mode = str(cfg.get("mode", "split")).lower()
-    if mode not in ("split", "shrink"):
-        mode = "split"
+    mode = str(cfg.get("mode", "zones")).lower()
+    if mode not in ("zones", "split", "shrink"):
+        mode = "zones"
     try:
         min_scale = float(cfg.get("min_scale", 1.0))
     except (TypeError, ValueError):
@@ -639,7 +779,7 @@ def expand_for_overflow(slides_data: list[dict[str, Any]], profile: dict[str, An
     흰색으로 숨겨 번호·들여쓰기 체계만 유지한다. 표·타임라인은 첫 장에만 둔다.
     """
     policy = _overflow_policy()
-    if policy["mode"] != "split":
+    if policy["mode"] == "shrink":
         return slides_data
 
     expanded: list[dict[str, Any]] = []
@@ -649,8 +789,13 @@ def expand_for_overflow(slides_data: list[dict[str, Any]], profile: dict[str, An
         body_cfg = cfg["body"]
         sizes = [float(x) for x in body_cfg.get("level_sizes", [14, 13, 12, 11, 10])]
         width = float(body_cfg["w"])
-        first_h = available_body_height(ptype, cfg)
-        cont_h = available_body_height(2, cfg)
+        # zones 모드는 빈 구역을 모두 합친 높이가 한 장의 수용력이다.
+        if policy["mode"] == "zones":
+            first_h = sum(h for _, h in body_zones(ptype, cfg))
+            cont_h = sum(h for _, h in body_zones(2, cfg))
+        else:
+            first_h = available_body_height(ptype, cfg)
+            cont_h = available_body_height(2, cfg)
         items = data.get("body") or []
 
         chunks = _chunk_body(items, width, first_h, cont_h, sizes, policy["min_scale"])

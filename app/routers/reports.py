@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import re
 import shutil
 import time
 from datetime import datetime
@@ -121,11 +122,28 @@ def patch_slide(report_id: str, slide_no: int, patch: SlidePatch):
             text = str(item.get("text", "")).strip()
             if not text:
                 continue
-            cleaned.append({
+            entry = {
                 "text": text,
                 "level": max(0, min(4, int(item.get("level", 0) or 0))),
                 "bold": item.get("bold"),
-            })
+            }
+            # 글머리 지정 — 비우면 양식의 자동번호를 따른다.
+            # 자동번호와 같은 꼴("3." / "3)")이면 시작 번호로 해석해 이후 항목이
+            # 이어서 매겨지게 한다. 그 외 문자는 고정 글머리로 쓴다.
+            bullet = str(item.get("bullet") or "").strip()
+            start = item.get("bullet_start")
+            auto = re.fullmatch(r"(\d+)\.", bullet) if entry["level"] == 0 else \
+                re.fullmatch(r"(\d+)\)", bullet) if entry["level"] == 1 else None
+            if auto:
+                start, bullet = auto.group(1), ""
+            if bullet:
+                entry["bullet"] = bullet[:8]
+            if start not in (None, ""):
+                try:
+                    entry["bullet_start"] = max(1, int(start))
+                except (TypeError, ValueError):
+                    pass
+            cleaned.append(entry)
         if not cleaned:
             raise HTTPException(400, "본문은 최소 한 줄이 있어야 합니다.")
         changes["body"] = cleaned
