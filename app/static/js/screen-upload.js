@@ -170,6 +170,31 @@ Screens.s2 = (function(){
       .catch(function(e){ $id('ruleStatus').textContent = '교체 실패: ' + e.message; });
   }
 
+  /* ── 시연용 샘플 보고서 ── */
+  function loadDemoUnits(){
+    return API.get('/api/demo/units').then(function(d){
+      var sel = $id('demoUnitSel');
+      var keep = sel.value;
+      sel.innerHTML = d.units.map(function(u){
+        var mark = u.created || u.created_messy ? ' ✓' : '';
+        return '<option value="' + u.id + '">' + esc(u.name) + mark + '</option>';
+      }).join('');
+      if(keep) sel.value = keep;
+    }).catch(function(){});
+  }
+
+  function generateDemo(body){
+    $id('demoStatus').textContent = '시연용 보고서를 만드는 중…';
+    API.post('/api/demo/generate', body).then(function(res){
+      var names = res.created.map(function(x){ return x.name + '(' + x.slide_count + 'p, 오류 ' + (x.issue_count || 0) + '건)'; });
+      $id('demoStatus').textContent = '생성 완료 — ' + names.join(', ');
+      loadDemoUnits();
+      refresh();
+    }).catch(function(e){
+      $id('demoStatus').textContent = '생성 실패: ' + e.message;
+    });
+  }
+
   /* ── 파일 목록 ── */
   function renderFileList(){
     var list = $id('fileList');
@@ -325,6 +350,13 @@ Screens.s2 = (function(){
     dz.addEventListener('drop', function(e){ uploadFiles(e.dataTransfer.files); });
     $id('mergeBtn').onclick = runMerge;
 
+    $id('demoOneBtn').onclick = function(){
+      generateDemo({ unit_ids: [$id('demoUnitSel').value], messy: $id('demoMessy').checked });
+    };
+    $id('demoAllBtn').onclick = function(){
+      generateDemo({ all_units: true, messy: $id('demoMessy').checked });
+    };
+
     $id('ruleEditBtn').onclick = function(){ editingRules ? renderRuleView() : renderRuleEdit(); };
     $id('ruleTplBtn').onclick = function(){ $id('ruleTplInput').click(); };
     $id('ruleTplInput').onchange = function(){
@@ -344,6 +376,7 @@ Screens.s2 = (function(){
     load: function(){
       bind();
       loadRules();
+      loadDemoUnits();
       refresh();
     }
   };
