@@ -31,15 +31,14 @@ Screens.s5 = (function(){
   }
 
   function renderStatus(){
-    var note;
+    var note = '';
     if(caps.llm_enabled){
       note = '🔎 통합 답변 사용 중 (모델: ' + esc(caps.llm_model || '') + ') — 답변 생성 시 선택한 보고서 전문과 질문이 '
         + 'Claude API로 전송됩니다(모델 학습에는 사용되지 않음). 전송 내역은 매 답변 아래에 그대로 표시됩니다.';
-    }else{
-      note = '현재 API 키가 설정되지 않아 오프라인 발췌 답변만 제공됩니다. 환경변수 ANTHROPIC_API_KEY 를 '
-        + '설정하면 보고서 근거·뉴스·판단형 질문을 아우르는 통합 답변이 활성화됩니다.';
     }
-    $id('chatScopeNote').innerHTML = note;
+    var status = $id('chatScopeNote');
+    status.innerHTML = note;
+    status.hidden = !note;
   }
 
   function bubble(role, html){
