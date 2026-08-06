@@ -1,10 +1,40 @@
 """경로 상수 — 프로젝트 전체가 이 모듈의 경로만 사용한다."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 APP_DIR = Path(__file__).resolve().parent
 ROOT = APP_DIR.parent
+ENV_FILE = ROOT / ".env"
+
+
+def _load_env() -> None:
+    """루트의 .env 를 환경변수로 읽어 온다.
+
+    이미 설정된 환경변수(호스팅 대시보드에서 넣은 값 등)가 우선이며,
+    빈 값은 넣지 않아 '설정 안 함'과 구분된다. python-dotenv 가 없어도 동작한다.
+    """
+    if not ENV_FILE.exists():
+        return
+    try:
+        from dotenv import dotenv_values
+
+        pairs = dotenv_values(ENV_FILE, encoding="utf-8")
+    except ImportError:
+        pairs = {}
+        for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            pairs[key.strip()] = value.strip().strip("'\"")
+    for key, value in pairs.items():
+        if value and not os.environ.get(key):
+            os.environ[key] = value
+
+
+_load_env()
 
 STATIC = APP_DIR / "static"
 ASSETS = APP_DIR / "assets"
