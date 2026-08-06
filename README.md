@@ -67,7 +67,9 @@ data/ uploads/ generated/    JSON 저장소 · 업로드 원본 · 생성 결과
 - 저장은 JSON 파일 — 다중 사용자 동시 편집은 지원하지 않습니다.
 - 원본 PPT의 이미지·차트 개체는 추출하지 않습니다(텍스트·표·타임라인만 이관).
 - AI 피드백·챗봇은 기본적으로 TF-IDF + 규칙 기반 오프라인 응답입니다.
-  환경변수 `LLM_API_URL` / `LLM_API_KEY` / `LLM_MODEL` 을 설정한 경우에만 외부 LLM을 호출합니다.
+  `.env` 에 `LLM_MODEL` 과 `LLM_API_KEY` 를 채운 경우에만 외부 LLM을 호출합니다.
+  호출 주소는 모델 이름으로 자동 판별합니다 — `claude-*` 는 Anthropic,
+  `gpt-*` 는 OpenAI. 사내·로컬 LLM 서버를 쓸 때만 `LLM_API_URL` 을 지정하세요.
 - 표준 양식 렌더링에는 나눔스퀘어(`NanumSquareR/EB.ttf`) 글꼴 설치가 필요합니다.
   미설치 시 PPT에서 대체 글꼴로 표시됩니다.
 - 뉴스 검색은 구글 뉴스 RSS를 서버에서 호출합니다. 외부 접속이 막힌 사내망에서는

@@ -22,10 +22,37 @@ class ChatRequest(BaseModel):
     mode: str = "easy"
 
 
-def call_optional_llm(question: str, mode: str, unit_name: str, sources: list[dict[str, Any]]) -> str | None:
-    url, key, model = (os.environ.get(k, "").strip() for k in ("LLM_API_URL", "LLM_API_KEY", "LLM_MODEL"))
-    if not (url and key and model):
+def resolve_endpoint(model: str, url: str = "") -> tuple[str, str] | None:
+    """모델 이름만으로 호출 주소와 형식을 정한다. URL을 직접 넣으면 그 값이 우선.
+
+    돌려주는 값: (요청 URL, 형식) — 형식은 "anthropic" 또는 "openai".
+    """
+    model = model.strip()
+    url = url.strip()
+    if model.startswith("claude-"):
+        style = "anthropic"
+        default_url = "https://api.anthropic.com/v1/messages"
+    elif model.startswith(("gpt-", "o1", "o3", "o4", "chatgpt")):
+        style = "openai"
+        default_url = "https://api.openai.com/v1/chat/completions"
+    elif url:
+        # 모르는 모델이라도 주소를 직접 주면 OpenAI 호환으로 시도한다.
+        style = "openai"
+        default_url = url
+    else:
         return None
+    return (url or default_url), style
+
+
+def call_optional_llm(question: str, mode: str, unit_name: str, sources: list[dict[str, Any]]) -> str | None:
+    key, model = (os.environ.get(k, "").strip() for k in ("LLM_API_KEY", "LLM_MODEL"))
+    url = os.environ.get("LLM_API_URL", "").strip()
+    if not (key and model):
+        return None
+    resolved = resolve_endpoint(model, url)
+    if resolved is None:
+        return None
+    url, style = resolved
     source_text = "\n\n".join(
         f"[출처 {i+1}: {unit_name} {s['slide_number']}페이지]\n{s['summary']}\n"
         + "\n".join(f"- {e['quote']}" for e in s.get("evidence", []))
@@ -41,13 +68,37 @@ def call_optional_llm(question: str, mode: str, unit_name: str, sources: list[di
 
 {source_text}
 """
-    body = json.dumps({"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.1}).encode("utf-8")
-    req = urllib.request.Request(url, data=body, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, method="POST")
+    if style == "anthropic":
+        payload = {
+            "model": model,
+            "max_tokens": 2000,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        headers = {
+            "x-api-key": key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+    else:
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+        }
+        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+
+    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=35) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-            return data["choices"][0]["message"]["content"].strip()
-    except (urllib.error.URLError, KeyError, IndexError, json.JSONDecodeError):
+        if style == "anthropic":
+            # 응답 형식: {"content": [{"type": "text", "text": "..."}]}
+            for block in data.get("content", []):
+                if block.get("type") == "text" and block.get("text", "").strip():
+                    return block["text"].strip()
+            return None
+        return data["choices"][0]["message"]["content"].strip()
+    except (urllib.error.URLError, KeyError, IndexError, TypeError, json.JSONDecodeError):
         return None
 
 
