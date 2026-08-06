@@ -4,8 +4,9 @@
    두 결과를 하나의 기업·기술 그래프로 통합해 보여준다. */
 Screens.s6 = (function(){
   var NS = 'http://www.w3.org/2000/svg';
-  var CX = 260, CY = 180;
-  var RING = { tech: 90, company: 158 };
+  var VIEW_W = 720, VIEW_H = 500;
+  var CX = VIEW_W / 2, CY = 235;
+  var RING = { tech: 132, company: 214 };
   var COLORS = { biz: '#ea002c', company: '#f47725', tech: '#1baf7a' };
   var MAX_VISIBLE = 20;
 
@@ -207,10 +208,81 @@ Screens.s6 = (function(){
     return pos;
   }
   function nodeRadius(n){
-    if(n.type === 'biz') return 30;
-    return Math.min(32, 13 + Math.sqrt(n.touch_count || n.weight || 1) * 3.5);
+    if(n.type === 'biz') return 39;
+    return Math.min(29, 14 + Math.sqrt(n.touch_count || n.weight || 1) * 3.2);
   }
-  function shortLabel(s){ return s.length > 11 ? s.slice(0, 10) + '…' : s; }
+  function wrapLabel(value, maxChars){
+    var text = String(value || ''), words = text.split(/([\s_-]+)/).filter(Boolean);
+    var lines = [], line = '';
+    words.forEach(function(word){
+      if(word.length > maxChars && !/[\s_-]/.test(word)){
+        if(line){ lines.push(line); line = ''; }
+        while(word.length > maxChars){ lines.push(word.slice(0, maxChars)); word = word.slice(maxChars); }
+        line = word;
+      }else if((line + word).length > maxChars && line.trim()){
+        lines.push(line.trim()); line = word.replace(/^[\s_-]+/, '');
+      }else line += word;
+    });
+    if(line.trim()) lines.push(line.trim());
+    if(lines.length > 3){ lines = lines.slice(0, 3); lines[2] = lines[2].slice(0, Math.max(1, maxChars - 1)) + '…'; }
+    return lines.length ? lines : ['이름 없음'];
+  }
+  function labelMetrics(n, p, r){
+    var lines = wrapLabel(n.label, n.type === 'biz' ? 9 : 13);
+    if(n.type === 'biz') return {id:n.id, x:p.x, y:p.y, w:70, h:lines.length * 12, lines:lines, biz:true};
+    var longest = lines.reduce(function(m, line){ return Math.max(m, line.length); }, 0);
+    var w = Math.max(58, Math.min(150, longest * 7.2 + 20));
+    var h = lines.length * 14 + 10;
+    var dx = p.x - CX, dy = p.y - CY, len = Math.sqrt(dx * dx + dy * dy) || 1;
+    var ux = dx / len, uy = dy / len, x, y;
+    if(Math.abs(ux) > .68){
+      x = p.x + ux * (r + 11 + w / 2); y = p.y;
+    }else{
+      x = p.x; y = p.y + uy * (r + 11 + h / 2);
+    }
+    return {id:n.id, x:x, y:y, w:w, h:h, lines:lines, biz:false};
+  }
+  function boxesOverlap(a, b, pad){
+    return Math.abs(a.x - b.x) < (a.w + b.w) / 2 + pad &&
+           Math.abs(a.y - b.y) < (a.h + b.h) / 2 + pad;
+  }
+  function relaxLabels(labels, nodes, pos){
+    var movable = labels.filter(function(l){ return !l.biz; });
+    var nodeBoxes = nodes.map(function(n){
+      var r = nodeRadius(n);
+      return {id:n.id, x:pos[n.id].x, y:pos[n.id].y, w:r * 2, h:r * 2};
+    });
+    for(var step=0; step<32; step++){
+      var moved = false;
+      for(var i=0; i<movable.length; i++){
+        for(var j=i+1; j<movable.length; j++){
+          var a = movable[i], b = movable[j];
+          if(!boxesOverlap(a, b, 5)) continue;
+          var dx = a.x - b.x, dy = a.y - b.y;
+          if(Math.abs(dx) > Math.abs(dy)){
+            var sx = dx >= 0 ? 2.4 : -2.4; a.x += sx; b.x -= sx;
+          }else{
+            var sy = dy >= 0 ? 2.4 : -2.4; a.y += sy; b.y -= sy;
+          }
+          moved = true;
+        }
+      }
+      movable.forEach(function(l){
+        nodeBoxes.forEach(function(node){
+          if(node.id === l.id || !boxesOverlap(l, node, 7)) return;
+          var dx = l.x - node.x, dy = l.y - node.y;
+          if(Math.abs(dx) > Math.abs(dy)) l.x += dx >= 0 ? 3.2 : -3.2;
+          else l.y += dy >= 0 ? 3.2 : -3.2;
+          moved = true;
+        });
+      });
+      movable.forEach(function(l){
+        l.x = Math.max(l.w / 2 + 9, Math.min(VIEW_W - l.w / 2 - 9, l.x));
+        l.y = Math.max(l.h / 2 + 9, Math.min(VIEW_H - l.h / 2 - 9, l.y));
+      });
+      if(!moved) break;
+    }
+  }
   function edgeStyle(e){
     if(e.relation_type === 'seed') return {stroke:'#c3c2b7', dash:'', opacity:0.45};
     if(e.relation_type === 'co_occurrence') return {stroke:'#c3c2b7', dash:'4 3', opacity:1};
@@ -227,8 +299,17 @@ Screens.s6 = (function(){
       empty.textContent = '표시할 조사 관계가 없습니다.';
       svg.appendChild(empty); return;
     }
-    var nodes = visibleNodes(), byId = {}, pos = layout(nodes);
+    var nodes = visibleNodes(), byId = {}, pos = layout(nodes), labels = [];
     nodes.forEach(function(n){ byId[n.id] = n; });
+    var edgeLayer = document.createElementNS(NS, 'g');
+    var guideLayer = document.createElementNS(NS, 'g');
+    var nodeLayer = document.createElementNS(NS, 'g');
+    var labelLayer = document.createElementNS(NS, 'g');
+    edgeLayer.setAttribute('class', 'graph-edge-layer');
+    guideLayer.setAttribute('class', 'graph-guide-layer');
+    nodeLayer.setAttribute('class', 'graph-node-layer');
+    labelLayer.setAttribute('class', 'graph-label-layer');
+    svg.appendChild(edgeLayer); svg.appendChild(guideLayer); svg.appendChild(nodeLayer); svg.appendChild(labelLayer);
     graphData.edges.forEach(function(e){
       if(!byId[e.a] || !byId[e.b]) return;
       var st = edgeStyle(e), ln = document.createElementNS(NS, 'line');
@@ -237,12 +318,46 @@ Screens.s6 = (function(){
       ln.setAttribute('stroke', st.stroke); ln.setAttribute('opacity', st.opacity);
       ln.setAttribute('stroke-width', Math.min(1.5 + (e.weight - 1) * 0.45, 3.5));
       if(st.dash) ln.setAttribute('stroke-dasharray', st.dash);
+      ln.setAttribute('class', 'graph-edge');
+      ln.dataset.stroke = st.stroke; ln.dataset.opacity = st.opacity;
       ln.dataset.a = e.a; ln.dataset.b = e.b;
-      svg.appendChild(ln);
+      edgeLayer.appendChild(ln);
     });
+    nodes.forEach(function(n){ labels.push(labelMetrics(n, pos[n.id], nodeRadius(n))); });
+    relaxLabels(labels, nodes, pos);
+    var labelsById = {};
+    labels.forEach(function(l){ labelsById[l.id] = l; });
+    function resetEdges(){
+      svg.querySelectorAll('.graph-edge').forEach(function(line){
+        line.setAttribute('stroke', line.dataset.stroke);
+        line.setAttribute('opacity', line.dataset.opacity);
+      });
+    }
+    function bindInteraction(el, n){
+      el.style.cursor = 'pointer';
+      el.addEventListener('mousemove', function(ev){
+        var details = '<b>' + esc(n.label) + '</b><br>조사 ' + (n.query_count || 0) + '회 · 기사 ' + (n.article_count || n.weight || 0) + '건';
+        showTip(ev, details);
+        svg.querySelectorAll('.graph-edge').forEach(function(line){
+          var active = line.dataset.a === n.id || line.dataset.b === n.id;
+          line.setAttribute('stroke', active ? '#ea002c' : '#e1e0d9');
+          line.setAttribute('opacity', active ? '1' : '.34');
+        });
+      });
+      el.addEventListener('mouseleave', function(){ hideTip(); resetEdges(); });
+      el.addEventListener('click', function(){ selectNode(n.id); });
+    }
     nodes.forEach(function(n){
-      var p = pos[n.id], r = nodeRadius(n), g = document.createElementNS(NS, 'g');
-      g.style.cursor = 'pointer';
+      var p = pos[n.id], r = nodeRadius(n), label = labelsById[n.id], g = document.createElementNS(NS, 'g');
+      g.setAttribute('class', 'graph-node');
+      var title = document.createElementNS(NS, 'title');
+      title.textContent = n.label; g.appendChild(title);
+      if(!label.biz){
+        var guide = document.createElementNS(NS, 'line');
+        guide.setAttribute('x1', p.x); guide.setAttribute('y1', p.y);
+        guide.setAttribute('x2', label.x); guide.setAttribute('y2', label.y);
+        guide.setAttribute('class', 'graph-label-guide'); guideLayer.appendChild(guide);
+      }
       var c = document.createElementNS(NS, 'circle');
       c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', r);
       c.setAttribute('fill', COLORS[n.type] || COLORS.company);
@@ -250,20 +365,26 @@ Screens.s6 = (function(){
       c.setAttribute('stroke-width', n.id === selectedId ? 3 : 2); c.dataset.node = n.id;
       if(n.seed && !n.touch_count) c.setAttribute('opacity', '0.55');
       g.appendChild(c);
+      var lg = document.createElementNS(NS, 'g');
+      lg.setAttribute('class', 'graph-node-label' + (label.biz ? ' biz' : ''));
+      if(!label.biz){
+        var rect = document.createElementNS(NS, 'rect');
+        rect.setAttribute('x', label.x - label.w / 2); rect.setAttribute('y', label.y - label.h / 2);
+        rect.setAttribute('width', label.w); rect.setAttribute('height', label.h);
+        rect.setAttribute('rx', 8); lg.appendChild(rect);
+      }
       var t = document.createElementNS(NS, 'text');
-      t.setAttribute('x', p.x); t.setAttribute('y', p.y + r + 13); t.setAttribute('text-anchor', 'middle');
-      t.setAttribute('font-size', '10.5'); t.setAttribute('font-weight', '600'); t.setAttribute('fill', '#0b0b0b');
-      t.textContent = shortLabel(n.label); g.appendChild(t);
-      g.addEventListener('mousemove', function(ev){
-        var details = '<b>' + esc(n.label) + '</b><br>조사 ' + (n.query_count || 0) + '회 · 기사 ' + (n.article_count || n.weight || 0) + '건';
-        showTip(ev, details);
-        svg.querySelectorAll('line').forEach(function(line){
-          line.setAttribute('stroke', line.dataset.a === n.id || line.dataset.b === n.id ? '#ea002c' : '#e1e0d9');
-        });
+      t.setAttribute('x', label.x); t.setAttribute('text-anchor', 'middle');
+      var lineH = label.biz ? 12 : 14;
+      var startY = label.y - ((label.lines.length - 1) * lineH) / 2 + 4;
+      label.lines.forEach(function(line, idx){
+        var span = document.createElementNS(NS, 'tspan');
+        span.setAttribute('x', label.x); span.setAttribute('y', startY + idx * lineH);
+        span.textContent = line; t.appendChild(span);
       });
-      g.addEventListener('mouseleave', function(){ hideTip(); renderGraph(); });
-      g.addEventListener('click', function(){ selectNode(n.id); });
-      svg.appendChild(g);
+      lg.appendChild(t);
+      bindInteraction(g, n); bindInteraction(lg, n);
+      nodeLayer.appendChild(g); labelLayer.appendChild(lg);
     });
     $id('insGraphSub').textContent = '노드 ' + graphData.nodes.length + '개 · 관계 ' + graphData.edges.length + '개';
     renderMore(nodes.length);

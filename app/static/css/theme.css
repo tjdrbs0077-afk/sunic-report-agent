@@ -395,8 +395,34 @@ select {
 .relbar { display:inline-block; width:52px; height:4px; background:var(--grid); border-radius:99px; overflow:hidden; vertical-align:2px; margin-right:6px;}
 .relbar i { display:block; height:100%; background:var(--accent); }
 
-#graph text { font-family: inherit; }
+.insight-graph-card { overflow:hidden; }
+.insight-graph-canvas {
+  width:100%; min-height:460px; border:1px solid var(--grid); border-radius:16px;
+  background:
+    radial-gradient(circle at 50% 47%, rgba(234,0,44,.035), transparent 28%),
+    linear-gradient(180deg, #fff 0%, #fcfbfa 100%);
+  overflow:hidden;
+}
+#graph { display:block; width:100%; min-height:460px; }
+#graph text { font-family:inherit; user-select:none; }
+#graph .graph-edge { transition:stroke .16s, opacity .16s, stroke-width .16s; }
+#graph .graph-node circle { transition:stroke .16s, stroke-width .16s, filter .16s; }
+#graph .graph-node:hover circle { filter:drop-shadow(0 4px 7px rgba(25,18,22,.18)); }
+#graph .graph-node-label rect {
+  fill:rgba(255,255,255,.96); stroke:var(--grid); stroke-width:1;
+  filter:drop-shadow(0 2px 3px rgba(25,18,22,.07));
+}
+#graph .graph-node-label text { fill:var(--text-primary); font-size:12.5px; font-weight:650; }
+#graph .graph-node-label.biz text { fill:#fff; font-size:11.5px; font-weight:750; }
+#graph .graph-label-guide { stroke:#d8d0cd; stroke-width:1; opacity:.8; }
 .legend-inline { display:flex; gap:16px; font-size:12px; color:var(--text-secondary); margin-top:10px; flex-wrap:wrap; }
+@media (min-width:1081px){
+  #s6 .grid.g2 { grid-template-columns:minmax(320px,.82fr) minmax(560px,1.18fr); }
+}
+@media (max-width:720px){
+  .insight-graph-canvas { min-height:420px; overflow-x:auto; }
+  #graph { min-width:640px; min-height:420px; }
+}
 
 /* ── 홈 화면 ─────────────────────── */
 .home-wrap {
