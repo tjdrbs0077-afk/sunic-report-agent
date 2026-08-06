@@ -1,4 +1,4 @@
-﻿canvas:
+canvas:
   width_in: 10.833333
   height_in: 7.5
 fonts:
@@ -61,11 +61,8 @@ footnote:
 continuation:
   rule: '동일 대주제가 다음 장으로 이어지면 Lv1 제목 색을 #FFFFFF 로 바꿔 숨긴다'
 overflow:
-  # split : 글자 크기를 유지하고 넘치는 본문을 다음 장으로 넘긴다 (기본)
-  # shrink: 한 장에 다 넣되 글자를 줄인다 (이전 동작으로 되돌리기)
   mode: split
-  # split 모드에서 허용하는 최소 축소 배율. 1.0 이면 축소 없이 기준 크기 유지
-  min_scale: 1.0
+  min_scale: 1
 cleanup:
   remove_empty_textbox: true
   collapse_spaces: true

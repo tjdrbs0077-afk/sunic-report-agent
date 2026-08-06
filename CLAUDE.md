@@ -24,7 +24,7 @@
 | 3 | s3 | 보고서 상세 | `/api/reports/{id}`, `/api/reports/{id}/rules` |
 | 4 | s4 | 페이지 편집 | `/api/layouts`, `/api/generate` |
 | 5 | s5 | 근거형 챗봇 | `/api/chat` — 단일 통합 챗봇 (보고서 전문 + 뉴스, LLM 키 없으면 오프라인 폴백) |
-| 6 | s6 | 동향 인사이트 | `/api/insight/graph` — ⑤ 지식·동향 조사가 누적되는 지식맵 |
+| 6 | s6 | 동향 인사이트 | `/api/reports/{id}/news` — 보고서 키워드 뉴스 + 기사 기반 기업·기술 지식맵 (챗봇과 미연동) |
 
 ## 디자인 규칙 — 반드시 지킬 것
 
@@ -103,8 +103,6 @@ app/
     retrieve.py        하이브리드 TF-IDF 검색 (콘텐츠 가중치·동의어·중복 제거)
     intent.py          질문 의도 분류 (사실/위치/요약/비교/분석/외부)
     lexicon.py         불용어·조사·동의어 사전 (config/synonyms.yaml 로드)
-    entity.py          검색어·공개 뉴스 → 엔티티 추출 (오프라인 규칙)
-    graph_store.py     동향 그래프 저장·병합 (data/insight_graph.json)
   static/              index.html, css/theme.css, js/*
   assets/              보고양식_Sample_4팀.pptx
 config/standard_rules.yaml
@@ -118,8 +116,8 @@ _ref/                  참고용 원본. 여기 파일은 수정하지 마세요
 - 표 병합 셀 미처리
 - 미리보기(CSS)와 실제 PPT 출력의 폰트 축소 알고리즘이 달라 미세하게 어긋남
 - 동시 편집 충돌 처리 없음
-- ⑥ 동향 인사이트: 시드 8개는 예시 데이터. 관계 추출은 오프라인 동시등장(점선)만,
-  LLM 근거 추출(실선)은 2차 (DESIGN_챗봇-동향그래프_연동.md 참고)
+- ⑥ 동향 인사이트는 보고서 키워드 뉴스 그래프만 사용한다. 챗봇 질문은 그래프에
+  저장·연동하지 않는다 (팀 결정으로 연동 제거 — DESIGN_챗봇-동향그래프_연동.md 는 폐기된 설계)
 
 이 항목들은 고도화 단계에서 다룹니다. 데모에서는 건드리지 마세요.
 

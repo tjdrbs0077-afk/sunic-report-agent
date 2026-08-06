@@ -16,7 +16,7 @@
 
 전송 정책 (v2 유지): LLM 사용 시 보고서 발췌/구조화 본문이 Claude API 로
 전송되며, 무엇이 나갔는지 disclosure 로 매 답변 공개한다.
-그래프(⑥)에는 정제된 검색어·공개 기사만 저장한다.
+⑥ 지식맵과는 연동하지 않는다 — 챗봇 질문은 어디에도 저장되지 않는다.
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app import config
-from app.services import entity, graph_store, intent, knowledge, lexicon, llm, news, store
+from app.services import intent, knowledge, llm, news, store
 from app.services.retrieve import (MIN_SCORE, STRONG_SCORE, content_weight,
                                    query_terms, retrieve, slide_document, term_overlap)
 
@@ -303,21 +303,6 @@ def _offline_news_answer(feed: dict[str, Any]) -> str:
 
 
 # ──────────────────────────────────────────────────────────────
-# 그래프 누적 (⑥ 연동)
-# ──────────────────────────────────────────────────────────────
-
-def _update_insight_graph(query: str, articles: list[dict[str, Any]]) -> dict[str, Any]:
-    try:
-        extraction = entity.extract(query, articles)
-        delta = graph_store.merge(extraction, query)
-        delta["labels"] = {n["id"]: n["label"] for n in extraction["nodes"]}
-        return delta
-    except Exception as exc:  # noqa: BLE001
-        return {"added_node_ids": [], "updated_node_ids": [], "added_edge_ids": [],
-                "article_count": 0, "labels": {}, "warnings": [f"엔티티 추출 실패 — {exc}"]}
-
-
-# ──────────────────────────────────────────────────────────────
 # 엔드포인트
 # ──────────────────────────────────────────────────────────────
 
@@ -389,10 +374,7 @@ def chat(req: ChatRequest):
     if not internal["connected"]:
         notices.append(internal["note"])
 
-    # 6) ⑥ 그래프 누적 — 검색어가 외부로 나간 경우에만 (보고서 내부 질문은 제외)
-    graph_delta = _update_insight_graph(query, articles) if need_news else None
-
-    # 7) 전송 내역 공개
+    # 6) 전송 내역 공개
     sent: list[str] = []
     llm_used = bool(answer) and llm.is_enabled() and not fallback_reason
     if llm_used:
@@ -439,7 +421,6 @@ def chat(req: ChatRequest):
                       "보고서 본문은 전송되지 않았습니다"),
         },
         "notice": " · ".join(notices) or None,
-        "graph_delta": graph_delta,
     }
 
 

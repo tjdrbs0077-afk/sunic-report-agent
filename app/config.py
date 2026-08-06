@@ -59,7 +59,6 @@ TEMPLATE = DEFAULT_TEMPLATE  # 하위 호환 — 실제 사용은 active_templat
 RULES_FILE = CONFIG_DIR / "standard_rules.yaml"
 REPORT_INDEX = DATA / "reports.json"
 LAYOUT_STORE = DATA / "layout_overrides.json"
-INSIGHT_GRAPH = DATA / "insight_graph.json"
 PROFILE_CACHE = DATA / "template_profile.json"
 TEMPLATE_STATE = DATA / "active_template.json"
 TEMPLATES_DIR = DATA / "templates"

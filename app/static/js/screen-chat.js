@@ -186,34 +186,6 @@ Screens.s5 = (function(){
     $id(btnId).onclick = function(){ ask(s.question); };
   }
 
-  /* ⑥ 동향 그래프 반영 결과 */
-  function renderGraphDelta(delta){
-    if(!delta) return;
-    var box = $id('chatDisclosure');
-    var added = delta.added_node_ids || [];
-    var updated = delta.updated_node_ids || [];
-    var labels = delta.labels || {};
-    var name = function(id){ return '<b>' + esc(labels[id] || id.split(':')[1] || id) + '</b>'; };
-
-    if(!added.length && !updated.length){
-      if(!(delta.warnings || []).length) return;
-      box.insertAdjacentHTML('beforeend',
-        '<div style="font-size:12px; color:var(--text-muted); margin-top:8px;">' +
-        '답변은 생성했지만 이번 결과는 동향 그래프에 반영하지 못했습니다.</div>');
-      return;
-    }
-    var parts = [];
-    if(added.length) parts.push(added.map(name).join(', ') + ' 추가');
-    if(updated.length) parts.push(updated.map(name).join(', ') + ' 관계 갱신');
-    box.insertAdjacentHTML('beforeend',
-      '<div style="margin-top:10px; font-size:12.5px;">📈 동향 그래프에 ' + parts.join(' · ') +
-      ' <a id="chatGraphLink" style="color:var(--accent-deep); font-weight:700; cursor:pointer; text-decoration:underline;">그래프에서 보기</a></div>');
-    $id('chatGraphLink').onclick = function(){
-      if(Screens.s6 && Screens.s6.focus) Screens.s6.focus(added.concat(updated));
-      goTo('s6');
-    };
-  }
-
   function send(){
     var input = $id('chatInput');
     var q = input.value.trim();
@@ -239,7 +211,6 @@ Screens.s5 = (function(){
       renderDisclosure(d.disclosure, d.notice);
       renderMeta(d.answer_meta);
       renderSuggestion(d.suggestion);
-      renderGraphDelta(d.graph_delta);
     }).catch(function(e){
       hideTyping();
       bubble('ai', '오류: ' + esc(e.message));

@@ -414,10 +414,6 @@
       </div>
       <div id="insKeywords"></div>
       <div class="prog-label" id="insFetchInfo" style="margin-top:10px;"></div>
-      <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--grid);">
-        <h3 style="margin-bottom:10px;">챗봇으로 조사된 주제 <span class="sub">질문이 쌓일수록 늘어납니다</span></h3>
-        <div id="kwList"></div>
-      </div>
     </div>
 
     <div class="grid g2">
@@ -426,21 +422,24 @@
         <div id="artList"></div>
       </div>
       <div class="card insight-graph-card">
-        <h3>기업·기술 조사 지식맵 <span class="sub" id="insGraphSub">보고서 키워드·챗봇 조사 기반</span></h3>
+        <h3>기업·기술 지식맵 <span class="sub" id="insGraphSub">보고서 키워드 뉴스 기반</span></h3>
         <div class="insight-graph-canvas">
           <svg id="graph" viewBox="0 0 720 500" width="100%" role="img" aria-label="기업·기관과 기술의 관계 그래프"></svg>
+          <div class="graph-zoom">
+            <button id="gzIn" title="확대" aria-label="확대">＋</button>
+            <button id="gzOut" title="축소" aria-label="축소">－</button>
+            <button id="gzFit" title="전체 보기" aria-label="전체 보기">⟲</button>
+          </div>
+          <div class="graph-zoom-hint">스크롤 = 확대/축소 · 드래그 = 이동</div>
         </div>
         <div class="legend-inline">
-          <span><i class="lg-dot" style="background:#ea002c"></i>우리 사업</span>
           <span><i class="lg-dot" style="background:#f47725"></i>기업·기관</span>
           <span><i class="lg-dot" style="background:#1baf7a"></i>기술</span>
-          <span>─ 근거 추출 관계</span>
-          <span>┄ 함께 언급 (관계 미확정)</span>
-          <span style="opacity:.55;">─ 예시 데이터</span>
+          <span>─ 기사 근거 관계 (굵을수록 함께 언급된 기사가 많음)</span>
         </div>
         <div id="graphMore"></div>
         <div id="nodeDetail" class="note" style="display:none;"></div>
-        <div class="note">노드를 클릭하면 상세 정보와 ‘챗봇에 물어보기’가 표시됩니다. 점선은 같은 기사에 함께 등장했다는 뜻이며 협력·경쟁 관계를 의미하지 않습니다.</div>
+        <div class="note">보고서 키워드로 수집한 뉴스에서 추출한 기업·기술 관계입니다. 노드를 클릭하면 상세 정보와 ‘챗봇에 물어보기’가 표시됩니다.</div>
       </div>
     </div>
   </section>
