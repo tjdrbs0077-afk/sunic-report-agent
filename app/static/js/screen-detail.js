@@ -76,7 +76,7 @@ Screens.s3 = (function(){
     /* 우: 표준 양식 적용본 */
     var counters = [0, 0];
     var right = '<div class="stitle">' + esc(s.page_title) + '</div><ul>';
-    s.body.forEach(function(item){
+    s.body.forEach(function(item, idx){
       var lv = Math.min(item.level, 4);
       var bullet;
       if(lv === 0){ counters[0]++; counters[1] = 0; bullet = counters[0] + '.'; }
@@ -84,7 +84,8 @@ Screens.s3 = (function(){
       else bullet = STD_BULLETS[lv];
       var wasBad = BAD_BULLETS.indexOf(item.text.charAt(0)) >= 0;
       var text = wasBad ? item.text.slice(1).trim() : item.text;
-      right += '<li style="margin-left:' + (lv * 14) + 'px;">' +
+      var mt = idx === 0 ? 0 : (lv <= 1 ? 7 : 4);   /* 샘플 spc_before 비율 축소판 */
+      right += '<li style="margin-left:' + (lv * 14) + 'px;margin-top:' + mt + 'px;' + (lv === 0 ? 'font-weight:700;' : '') + '">' +
         (wasBad ? '<span class="fixedpt">' + bullet + '</span>' : bullet) + ' ' + esc(text) + '</li>';
     });
     right += '</ul>';

@@ -147,6 +147,10 @@ def _normalize_table(spec: dict[str, Any], max_cols: int, max_rows: int) -> dict
     return {"headers": headers, "rows": rows}
 
 
+# 원본 슬라이드의 영문 섹션 코드 (예: "08. FINANCIAL OUTLOOK") — 본문에서 제외
+SECTION_CODE_RE = re.compile(r"^\d{1,2}\.\s*[A-Z0-9 &/\-]+$")
+
+
 def extract_presentation(path: Path, report_id: str | None = None, display_name: str | None = None) -> dict[str, Any]:
     prs = Presentation(path)
     if not prs.slides:
@@ -181,14 +185,16 @@ def extract_presentation(path: Path, report_id: str | None = None, display_name:
             key = text.casefold()
             if not text or key in seen:
                 continue
+            # 페이지 제목과 같은 줄, "08. FINANCIAL OUTLOOK" 같은 섹션 코드는
+            # 본문이 아니라 장식이다 — 표준 양식 본문에 포함하지 않는다.
+            if key == page_title.strip().casefold() or SECTION_CODE_RE.fullmatch(text):
+                continue
             seen.add(key)
             body.append({"text": text, "level": _estimate_level(entry, max_font), "bold": bool(entry["bold"]) or None})
             if len(body) >= 12:
                 break
         if not body:
             body = [{"text": page_title, "level": 0, "bold": True}]
-        elif body[0]["level"] > 0:
-            body.insert(0, {"text": page_title, "level": 0, "bold": True})
 
         date_tokens: list[str] = []
         for entry in entries:

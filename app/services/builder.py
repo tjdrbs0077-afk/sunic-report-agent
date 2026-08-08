@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 from zipfile import ZipFile
 
+import yaml
 from lxml import etree
 from pptx import Presentation
 from pptx.dml.color import RGBColor
@@ -20,9 +21,91 @@ from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.oxml.ns import qn
 from pptx.util import Inches, Pt
 
+from app import config
+
 EMU = 914400
 BLACK = RGBColor(0, 0, 0)
 WHITE = RGBColor(255, 255, 255)
+
+# ── 표준 본문 번호·글머리 (standard_rules.yaml body_levels) ──────────
+# 생성 PPTX 단락에 buAutoNum/buChar 를 명시적으로 기록한다.
+# 이전에는 단락 level 만 지정해 번호가 아예 찍히지 않거나 임의로 보였다.
+
+_LEVEL_FALLBACK = [
+    {"marL": 265113, "indent": -265113, "bullet": "auto:1.", "spc_before": 10},
+    {"marL": 538163, "indent": -266700, "bullet": "auto:1)", "spc_before": 10},
+    {"marL": 714375, "indent": -179388, "bullet": "wingdings:❑", "spc_before": 5},
+    {"marL": 892175, "indent": -177800, "bullet": "arial:–", "spc_before": 5},
+    {"marL": 1081088, "indent": -188913, "bullet": "arial:•", "spc_before": 5},
+]
+_AUTONUM_TYPES = {"1.": "arabicPeriod", "1)": "arabicParenR", "(1)": "arabicParenBoth", "a.": "alphaLcPeriod"}
+_BULLET_FONTS = {"wingdings": "Wingdings", "arial": "Arial"}
+_std_levels_cache: list[dict[str, Any]] | None = None
+
+
+def _std_levels() -> list[dict[str, Any]]:
+    global _std_levels_cache
+    if _std_levels_cache is None:
+        levels = _LEVEL_FALLBACK
+        try:
+            rules = yaml.safe_load(config.RULES_FILE.read_text(encoding="utf-8")) or {}
+            loaded = rules.get("body_levels") or []
+            if len(loaded) >= 5:
+                levels = loaded
+        except Exception:  # noqa: BLE001 — 규칙 파일이 없어도 기본값으로 생성한다
+            pass
+        _std_levels_cache = levels
+    return _std_levels_cache
+
+
+def _apply_bullet(paragraph, level: int, first: bool = False) -> None:
+    """단락에 표준 들여쓰기·줄간격·앞 간격과 번호/글머리 기호를 명시한다.
+
+    buAutoNum 은 같은 텍스트 프레임 안 같은 레벨에서 1. 2. 3. 으로 자동 증가한다.
+    스키마 순서(lnSpc → spcBef → buFont → buAutoNum/buChar)를 지켜서 넣는다.
+    """
+    spec = _std_levels()[max(0, min(4, level))]
+    pPr = paragraph._p.get_or_add_pPr()
+    pPr.set("marL", str(int(spec.get("marL", 0))))
+    pPr.set("indent", str(int(spec.get("indent", 0))))
+    for tag in ("a:lnSpc", "a:spcBef", "a:spcAft", "a:buNone", "a:buFont", "a:buAutoNum", "a:buChar"):
+        for el in pPr.findall(qn(tag)):
+            pPr.remove(el)
+
+    # 줄간격 100% + 단락 앞 간격 (샘플 실측: 레벨1·2 = 10pt, 3~5 = 5pt)
+    ln = pPr.makeelement(qn("a:lnSpc"), {})
+    ln.append(ln.makeelement(qn("a:spcPct"), {"val": "100000"}))
+    pPr.append(ln)
+    spc_pt = 0 if first else float(spec.get("spc_before", 0))   # 첫 단락은 위 여백 불필요
+    bef = pPr.makeelement(qn("a:spcBef"), {})
+    bef.append(bef.makeelement(qn("a:spcPts"), {"val": str(int(spc_pt * 100))}))
+    pPr.append(bef)
+
+    kind, _, val = str(spec.get("bullet", "")).partition(":")
+    if kind == "auto":
+        pPr.append(pPr.makeelement(qn("a:buAutoNum"), {"type": _AUTONUM_TYPES.get(val, "arabicPeriod")}))
+    elif val:
+        pPr.append(pPr.makeelement(qn("a:buFont"), {"typeface": _BULLET_FONTS.get(kind, kind.title())}))
+        pPr.append(pPr.makeelement(qn("a:buChar"), {"char": val}))
+
+
+def clean_body_items(items: list[dict[str, Any]], page_title: str) -> list[dict[str, Any]]:
+    """본문에서 제목 중복·섹션 코드를 걷어낸다.
+
+    ingest 수정 이전에 추출된 기존 보고서 JSON 을 위한 방어선이다
+    (재업로드 없이도 생성 결과가 깨끗해진다).
+    """
+    title_key = (page_title or "").strip().casefold()
+    section_re = re.compile(r"^\d{1,2}\.\s*[A-Z0-9 &/\-]+$")
+    cleaned = []
+    for item in items or []:
+        text = (item.get("text") or "").strip()
+        if not text:
+            continue
+        if text.casefold() == title_key or section_re.fullmatch(text):
+            continue
+        cleaned.append(item)
+    return cleaned or list(items or [])
 
 
 def inch(v: int | float) -> float:
@@ -254,15 +337,22 @@ MIN_BODY_SCALE = 0.45
 
 
 def _body_required_pt(items: list[dict[str, Any]], width_in: float, sizes: list[float], scale: float) -> float:
-    """주어진 배율에서 본문이 차지하는 세로 높이(pt)를 추정한다."""
+    """주어진 배율에서 본문이 차지하는 세로 높이(pt)를 추정한다.
+
+    표준 양식의 단락 앞 간격(spc_before, 샘플 실측)도 함께 계산해
+    간격을 넉넉히 줘도 상자를 넘치지 않게 자동 맞춤이 동작한다.
+    """
+    levels_spec = _std_levels()
     required = 0.0
-    for item in items:
+    for i, item in enumerate(items):
         level = max(0, min(4, int(item.get("level", 0))))
         size = float(sizes[level]) * scale
         usable_width = max(0.8, width_in - 0.18 * level)
         units_per_line = max(4.0, (usable_width * 72) / size)
         lines = max(1, math.ceil(_text_units(str(item.get("text", ""))) / units_per_line))
         required += lines * size * 1.32
+        if i > 0:
+            required += float(levels_spec[level].get("spc_before", 0)) * scale
     return required
 
 
@@ -347,10 +437,13 @@ def write_body_exact(shape, items: list[dict[str, Any]], cfg: dict[str, Any]) ->
         level = max(0, min(4, int(item.get("level", 0))))
         p.level = level
         p.alignment = PP_ALIGN.LEFT
+        _apply_bullet(p, level, first=(i == 0))   # 표준 번호·들여쓰기·줄간격을 단락에 명시
         r = p.add_run(); r.text = item.get("text", "")
         _font_xml(r, cfg.get("font_latin", "Corbel"), ea_fonts[level])
         r.font.size = Pt(fitted_sizes[level])
-        r.font.bold = bool(bolds[level] if item.get("bold") is None else item.get("bold"))
+        # 원본의 볼드 여부는 따르지 않는다 — 표준 양식은 레벨 스펙이 결정한다
+        # (원본 SK 템플릿은 본문 전체가 볼드라 그대로 두면 양식 위반이 된다)
+        r.font.bold = bool(bolds[level])
         # 이어지는 장의 대주제는 흰색으로 숨긴다 (스펙 4장 연속 슬라이드 규칙).
         # 번호·들여쓰기 체계는 그대로 유지된다.
         r.font.color.rgb = hidden_color if item.get("hidden") else parse_hex(cfg.get("text_color"), "#000000")
@@ -422,6 +515,12 @@ def apply_rule_fonts(profile: dict[str, Any]) -> dict[str, Any]:
     profile["body"]["font_latin"] = latin
     profile["body"]["font_ea"] = korean
     profile["body"]["level_ea_fonts"] = [heading, korean, korean, korean, korean]
+    # 레벨별 크기·볼드도 standard_rules.yaml body_levels 를 단일 진실로 삼는다
+    rule_levels = validator.load_rules().get("body_levels") or []
+    if len(rule_levels) >= 5:
+        profile["body"]["level_sizes"] = [
+            float(lv.get("size", d)) for lv, d in zip(rule_levels, [14, 13, 12, 11, 10])]
+        profile["body"]["level_bold"] = [bool(lv.get("bold", False)) for lv in rule_levels[:5]]
     profile["footnote"]["font_latin"] = latin
     profile["footnote"]["font_ea"] = korean
     for key in ("table_type1", "table_type3_top", "table_type3_bottom"):
@@ -512,7 +611,7 @@ def fill_slide(slide, data: dict[str, Any], slide_no: int, cfg: dict[str, Any]) 
     if body:
         _apply_geometry(body, cfg["body"])
         _limit_body_height(body, ptype, cfg)
-        write_body_exact(body, data["body"], cfg["body"])
+        write_body_exact(body, clean_body_items(data["body"], data.get("page_title", "")), cfg["body"])
 
     tables = sorted([s for s in slide.shapes if s.shape_type == MSO_SHAPE_TYPE.TABLE], key=lambda s: s.top)
     if ptype == 1 and tables:

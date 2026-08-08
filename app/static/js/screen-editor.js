@@ -54,7 +54,7 @@ Screens.s4 = (function(){
     if(key === 'timeline'){ def('x', 2.7); def('y', 6.25); def('w', 7.65); def('h', .8); def('font_size', 9); def('fill', 'transparent'); def('text_color', '#000000'); def('font_ea', '나눔스퀘어'); }
     if(key === 'frame'){ def('font_size', c.header_font_size || 14); def('fill', c.header_fill || '#B7D3EE'); def('text_color', c.header_text_color || '#000000'); def('font_ea', c.header_font_ea || '나눔스퀘어 ExtraBold'); c.bold = true; }
     if(key.indexOf('table_') === 0){ def('font_size', c.body_font_size || 10); def('fill', c.header_fill || '#DCE6F2'); def('text_color', '#000000'); def('font_ea', '나눔스퀘어'); c.bold = false; }
-    if(key === 'body'){ def('font_size', (c.level_sizes || [14])[0]); def('bold', true); }
+    if(key === 'body'){ def('font_size', (c.level_sizes || [14])[0]); def('bold', false); }
     return c;
   }
   function pctX(x){ return x / W * 100; }
@@ -171,10 +171,27 @@ Screens.s4 = (function(){
     html += objHtml('sidebar', c.sidebar,
       '<div style="height:100%;display:flex;align-items:center;justify-content:center;text-align:center;white-space:pre-line;">' +
       editable('sidebar', null, s.sidebar) + '</div>', 4);
+    /* 번호는 파워포인트처럼 증가시킨다 — 1. 2. 3. / 1) 2), 하위 단계가 나오면 하위 카운터 리셋.
+       들여쓰기·크기·볼드는 standard_rules 실측값(marL EMU)을 본문 폭 비율로 환산해 그대로 따른다. */
+    var bulletCounters = [0, 0];
+    var STD_MARL_EMU = [265113, 538163, 714375, 892175, 1081088];
+    var STD_SPC_BEFORE = [10, 10, 5, 5, 5];   /* 단락 앞 간격 pt — 샘플 실측 */
+    var lvSizes = (c.body && c.body.level_sizes) || [14, 13, 12, 11, 10];
+    var bodyW = (c.body && c.body.w) || 7.5;
     html += objHtml('body', c.body,
       s.body.map(function(x, i){
         var lv = Math.min(x.level, 4);
-        return '<div style="margin-left:' + (lv * 8) + '%;">' + STD_BULLETS[lv] + ' ' + editable('body', i, x.text) + '</div>';
+        var bullet;
+        if(lv === 0){ bulletCounters[0]++; bulletCounters[1] = 0; bullet = bulletCounters[0] + '.'; }
+        else if(lv === 1){ bulletCounters[1]++; bullet = bulletCounters[1] + ')'; }
+        else bullet = STD_BULLETS[lv];
+        var mPct = (STD_MARL_EMU[lv] / 914400) / bodyW * 100;
+        var mtEm = i === 0 ? 0 : (STD_SPC_BEFORE[lv] / lvSizes[lv]);
+        var stl = 'margin-left:' + mPct.toFixed(2) + '%;' +
+          'margin-top:' + mtEm.toFixed(2) + 'em;' +
+          'font-size:' + Math.round(lvSizes[lv] / lvSizes[0] * 100) + '%;' +
+          'font-weight:' + (lv === 0 ? '700' : '400') + ';';
+        return '<div style="' + stl + '">' + bullet + ' ' + editable('body', i, x.text) + '</div>';
       }).join(''), 4);
     if(s.template_type === 1){
       html += objHtml('table_type1', c.table_type1, miniTable(s.table1), 5);

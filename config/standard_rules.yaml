@@ -10,6 +10,7 @@ title:
   bold: true
   x: 0.298612
   y: 0.186044
+# spc_before: 단락 앞 간격(pt) — 보고양식 Sample 실측 (레벨1·2 = 10pt, 3~5 = 5pt)
 body_levels:
 - level: 1
   size: 14
@@ -17,30 +18,35 @@ body_levels:
   marL: 265113
   indent: -265113
   bullet: auto:1.
+  spc_before: 10
 - level: 2
   size: 13
-  bold: true
+  bold: false
   marL: 538163
   indent: -266700
   bullet: auto:1)
+  spc_before: 10
 - level: 3
   size: 12
-  bold: true
+  bold: false
   marL: 714375
   indent: -179388
   bullet: wingdings:❑
+  spc_before: 5
 - level: 4
   size: 11
   bold: false
   marL: 892175
   indent: -177800
   bullet: arial:–
+  spc_before: 5
 - level: 5
   size: 10
   bold: false
   marL: 1081088
   indent: -188913
   bullet: arial:•
+  spc_before: 5
 table:
   x_in: 2.89757
   width_in: 7.519097
