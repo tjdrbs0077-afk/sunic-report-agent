@@ -12,7 +12,7 @@ run.bat        (Windows)
 ```
 
 가상환경(.venv) 생성 → 의존성 설치 → uvicorn 실행까지 자동으로 진행되고,
-브라우저에서 **http://127.0.0.1:8020** 을 엽니다.
+브라우저에서 **http://127.0.0.1:8120** 을 엽니다.
 
 수동 실행:
 
@@ -20,7 +20,7 @@ run.bat        (Windows)
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-python -m uvicorn app.main:app --port 8020
+python -m uvicorn app.main:app --port 8120
 ```
 
 ## 환경변수 (전부 선택 사항)

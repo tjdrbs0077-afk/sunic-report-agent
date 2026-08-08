@@ -1,0 +1,491 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "file": "app/assets/보고양식_Sample_4팀.pptx",
+    "total": 5,
+    "byCategory": {
+      "글자 크기": 2,
+      "정리": 2,
+      "글꼴": 1
+    }
+  },
+  "variants": [
+    {
+      "file": "01_bad_bullet_spacing.pptx",
+      "expectedCategories": [
+        "bullet",
+        "cleanup"
+      ],
+      "total": 6,
+      "byCategory": {
+        "정리": 3,
+        "글자 크기": 2,
+        "글머리 기호": 1
+      },
+      "deltaFromSource": {
+        "글꼴": -1,
+        "글머리 기호": 1,
+        "정리": 1
+      },
+      "issues": [
+        {
+          "category": "글머리 기호",
+          "severity": "high",
+          "slide_no": 1,
+          "message": "'▶' → 표준 글머리(1. / 1) / ❑ / – / •) 교체 필요",
+          "detail": "슬라이드 1의 3단계 문단 “▶  CEO 보고”",
+          "auto_fixable": true
+        },
+        {
+          "category": "정리",
+          "severity": "low",
+          "slide_no": 1,
+          "message": "연속 공백 → 1칸으로 축소 필요",
+          "detail": "슬라이드 1 “▶  CEO 보고”",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "본문 11pt → 14pt 통일 필요",
+          "detail": "슬라이드 1의 1단계 문단",
+          "auto_fixable": true
+        },
+        {
+          "category": "정리",
+          "severity": "low",
+          "slide_no": 2,
+          "message": "연속 공백 → 1칸으로 축소 필요",
+          "detail": "슬라이드 2 “협의”",
+          "auto_fixable": true
+        },
+        {
+          "category": "정리",
+          "severity": "low",
+          "slide_no": 3,
+          "message": "연속 공백 → 1칸으로 축소 필요",
+          "detail": "슬라이드 3 “1) Sodium Fast Reactor    2) 사”",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 3,
+          "message": "본문 11pt → 14pt 통일 필요",
+          "detail": "슬라이드 3의 1단계 문단",
+          "auto_fixable": true
+        }
+      ]
+    },
+    {
+      "file": "02_wrong_title_font_size.pptx",
+      "expectedCategories": [
+        "font",
+        "size"
+      ],
+      "total": 6,
+      "byCategory": {
+        "글자 크기": 3,
+        "정리": 2,
+        "글꼴": 1
+      },
+      "deltaFromSource": {
+        "글자 크기": 1
+      },
+      "issues": [
+        {
+          "category": "글꼴",
+          "severity": "high",
+          "slide_no": 1,
+          "message": "'Times New Roman' → Corbel · 나눔스퀘어 계열로 교체 필요",
+          "detail": "슬라이드 1 “나눔스퀘어”",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "제목 30pt → 24pt 통일 필요",
+          "detail": "슬라이드 1의 페이지 제목",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "본문 11pt → 14pt 통일 필요",
+          "detail": "슬라이드 1의 1단계 문단",
+          "auto_fixable": true
+        },
+        {
+          "category": "정리",
+          "severity": "low",
+          "slide_no": 2,
+          "message": "연속 공백 → 1칸으로 축소 필요",
+          "detail": "슬라이드 2 “협의”",
+          "auto_fixable": true
+        },
+        {
+          "category": "정리",
+          "severity": "low",
+          "slide_no": 3,
+          "message": "연속 공백 → 1칸으로 축소 필요",
+          "detail": "슬라이드 3 “1) Sodium Fast Reactor    2) 사”",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 3,
+          "message": "본문 11pt → 14pt 통일 필요",
+          "detail": "슬라이드 3의 1단계 문단",
+          "auto_fixable": true
+        }
+      ]
+    },
+    {
+      "file": "03_wrong_body_font_size.pptx",
+      "expectedCategories": [
+        "font",
+        "size"
+      ],
+      "total": 10,
+      "byCategory": {
+        "글자 크기": 7,
+        "정리": 2,
+        "글꼴": 1
+      },
+      "deltaFromSource": {
+        "글자 크기": 5
+      },
+      "issues": [
+        {
+          "category": "글꼴",
+          "severity": "high",
+          "slide_no": 1,
+          "message": "'Times New Roman' → Corbel · 나눔스퀘어 계열로 교체 필요",
+          "detail": "슬라이드 1 “AI DC Solution ”",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "본문 18pt → 14pt 통일 필요",
+          "detail": "슬라이드 1의 1단계 문단",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "본문 18pt → 13pt 통일 필요",
+          "detail": "슬라이드 1의 2단계 문단",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "본문 18pt → 12pt 통일 필요",
+          "detail": "슬라이드 1의 3단계 문단",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "본문 18pt → 11pt 통일 필요",
+          "detail": "슬라이드 1의 4단계 문단",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "본문 18pt → 10pt 통일 필요",
+          "detail": "슬라이드 1의 5단계 문단",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "본문 11pt → 14pt 통일 필요",
+          "detail": "슬라이드 1의 1단계 문단",
+          "auto_fixable": true
+        },
+        {
+          "category": "정리",
+          "severity": "low",
+          "slide_no": 2,
+          "message": "연속 공백 → 1칸으로 축소 필요",
+          "detail": "슬라이드 2 “협의”",
+          "auto_fixable": true
+        },
+        {
+          "category": "정리",
+          "severity": "low",
+          "slide_no": 3,
+          "message": "연속 공백 → 1칸으로 축소 필요",
+          "detail": "슬라이드 3 “1) Sodium Fast Reactor    2) 사”",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 3,
+          "message": "본문 11pt → 14pt 통일 필요",
+          "detail": "슬라이드 3의 1단계 문단",
+          "auto_fixable": true
+        }
+      ]
+    },
+    {
+      "file": "04_shifted_title_position.pptx",
+      "expectedCategories": [
+        "position"
+      ],
+      "total": 5,
+      "byCategory": {
+        "글자 크기": 3,
+        "정리": 2
+      },
+      "deltaFromSource": {
+        "글꼴": -1,
+        "글자 크기": 1
+      },
+      "issues": [
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "본문 24pt → 14pt 통일 필요",
+          "detail": "슬라이드 1의 1단계 문단",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "본문 11pt → 14pt 통일 필요",
+          "detail": "슬라이드 1의 1단계 문단",
+          "auto_fixable": true
+        },
+        {
+          "category": "정리",
+          "severity": "low",
+          "slide_no": 2,
+          "message": "연속 공백 → 1칸으로 축소 필요",
+          "detail": "슬라이드 2 “협의”",
+          "auto_fixable": true
+        },
+        {
+          "category": "정리",
+          "severity": "low",
+          "slide_no": 3,
+          "message": "연속 공백 → 1칸으로 축소 필요",
+          "detail": "슬라이드 3 “1) Sodium Fast Reactor    2) 사”",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 3,
+          "message": "본문 11pt → 14pt 통일 필요",
+          "detail": "슬라이드 3의 1단계 문단",
+          "auto_fixable": true
+        }
+      ]
+    },
+    {
+      "file": "05_wrong_table_geometry.pptx",
+      "expectedCategories": [
+        "table"
+      ],
+      "total": 5,
+      "byCategory": {
+        "글자 크기": 2,
+        "정리": 2,
+        "표 규격": 1
+      },
+      "deltaFromSource": {
+        "글꼴": -1,
+        "표 규격": 1
+      },
+      "issues": [
+        {
+          "category": "표 규격",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "표 위치·폭 조정 필요 (L 1.96in → 2.90in, W 9.39in → 7.52in)",
+          "detail": "슬라이드 1의 표 — 표준: 좌 7.36cm, 폭 19.10cm 고정",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "본문 11pt → 14pt 통일 필요",
+          "detail": "슬라이드 1의 1단계 문단",
+          "auto_fixable": true
+        },
+        {
+          "category": "정리",
+          "severity": "low",
+          "slide_no": 2,
+          "message": "연속 공백 → 1칸으로 축소 필요",
+          "detail": "슬라이드 2 “협의”",
+          "auto_fixable": true
+        },
+        {
+          "category": "정리",
+          "severity": "low",
+          "slide_no": 3,
+          "message": "연속 공백 → 1칸으로 축소 필요",
+          "detail": "슬라이드 3 “1) Sodium Fast Reactor    2) 사”",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 3,
+          "message": "본문 11pt → 14pt 통일 필요",
+          "detail": "슬라이드 3의 1단계 문단",
+          "auto_fixable": true
+        }
+      ]
+    },
+    {
+      "file": "06_combined_errors.pptx",
+      "expectedCategories": [
+        "bullet",
+        "cleanup",
+        "font",
+        "size",
+        "table"
+      ],
+      "total": 13,
+      "byCategory": {
+        "글자 크기": 7,
+        "정리": 3,
+        "글꼴": 1,
+        "글머리 기호": 1,
+        "표 규격": 1
+      },
+      "deltaFromSource": {
+        "글머리 기호": 1,
+        "글자 크기": 5,
+        "정리": 1,
+        "표 규격": 1
+      },
+      "issues": [
+        {
+          "category": "글꼴",
+          "severity": "high",
+          "slide_no": 1,
+          "message": "'Times New Roman' → Corbel · 나눔스퀘어 계열로 교체 필요",
+          "detail": "슬라이드 1 “AI DC Solution ”",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "본문 18pt → 14pt 통일 필요",
+          "detail": "슬라이드 1의 1단계 문단",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "본문 18pt → 13pt 통일 필요",
+          "detail": "슬라이드 1의 2단계 문단",
+          "auto_fixable": true
+        },
+        {
+          "category": "글머리 기호",
+          "severity": "high",
+          "slide_no": 1,
+          "message": "'▶' → 표준 글머리(1. / 1) / ❑ / – / •) 교체 필요",
+          "detail": "슬라이드 1의 3단계 문단 “▶  CEO 보고”",
+          "auto_fixable": true
+        },
+        {
+          "category": "정리",
+          "severity": "low",
+          "slide_no": 1,
+          "message": "연속 공백 → 1칸으로 축소 필요",
+          "detail": "슬라이드 1 “▶  CEO 보고”",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "본문 18pt → 12pt 통일 필요",
+          "detail": "슬라이드 1의 3단계 문단",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "본문 18pt → 11pt 통일 필요",
+          "detail": "슬라이드 1의 4단계 문단",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "본문 18pt → 10pt 통일 필요",
+          "detail": "슬라이드 1의 5단계 문단",
+          "auto_fixable": true
+        },
+        {
+          "category": "표 규격",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "표 위치·폭 조정 필요 (L 1.96in → 2.90in, W 9.39in → 7.52in)",
+          "detail": "슬라이드 1의 표 — 표준: 좌 7.36cm, 폭 19.10cm 고정",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 1,
+          "message": "본문 11pt → 14pt 통일 필요",
+          "detail": "슬라이드 1의 1단계 문단",
+          "auto_fixable": true
+        },
+        {
+          "category": "정리",
+          "severity": "low",
+          "slide_no": 2,
+          "message": "연속 공백 → 1칸으로 축소 필요",
+          "detail": "슬라이드 2 “협의”",
+          "auto_fixable": true
+        },
+        {
+          "category": "정리",
+          "severity": "low",
+          "slide_no": 3,
+          "message": "연속 공백 → 1칸으로 축소 필요",
+          "detail": "슬라이드 3 “1) Sodium Fast Reactor    2) 사”",
+          "auto_fixable": true
+        },
+        {
+          "category": "글자 크기",
+          "severity": "mid",
+          "slide_no": 3,
+          "message": "본문 11pt → 14pt 통일 필요",
+          "detail": "슬라이드 3의 1단계 문단",
+          "auto_fixable": true
+        }
+      ]
+    }
+  ]
+}

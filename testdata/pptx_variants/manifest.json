@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-08T14:50:58.836Z",
+  "source": "app/assets/보고양식_Sample_4팀.pptx",
+  "authoringBase": "template-starter.pptx",
+  "purpose": "보고서 PPT 자동 검증·수정 회귀 테스트용 의도적 오류 입력",
+  "variants": [
+    {
+      "file": "01_bad_bullet_spacing.pptx",
+      "label": "불릿·공백 오류",
+      "expectedCategories": [
+        "bullet",
+        "cleanup"
+      ],
+      "knownGap": null,
+      "renderDir": ".tmp/ppt-variant-renders/01_bad_bullet_spacing"
+    },
+    {
+      "file": "02_wrong_title_font_size.pptx",
+      "label": "제목 글꼴·크기 오류",
+      "expectedCategories": [
+        "font",
+        "size"
+      ],
+      "knownGap": null,
+      "renderDir": ".tmp/ppt-variant-renders/02_wrong_title_font_size"
+    },
+    {
+      "file": "03_wrong_body_font_size.pptx",
+      "label": "본문 글꼴·크기 오류",
+      "expectedCategories": [
+        "font",
+        "size"
+      ],
+      "knownGap": null,
+      "renderDir": ".tmp/ppt-variant-renders/03_wrong_body_font_size"
+    },
+    {
+      "file": "04_shifted_title_position.pptx",
+      "label": "제목 위치 오류",
+      "expectedCategories": [
+        "position"
+      ],
+      "knownGap": "현재 validator에는 일반 텍스트 상자의 위치를 검사하는 범주가 없다.",
+      "renderDir": ".tmp/ppt-variant-renders/04_shifted_title_position"
+    },
+    {
+      "file": "05_wrong_table_geometry.pptx",
+      "label": "표 위치·너비 오류",
+      "expectedCategories": [
+        "table"
+      ],
+      "knownGap": null,
+      "renderDir": ".tmp/ppt-variant-renders/05_wrong_table_geometry"
+    },
+    {
+      "file": "06_combined_errors.pptx",
+      "label": "복합 오류",
+      "expectedCategories": [
+        "bullet",
+        "cleanup",
+        "font",
+        "size",
+        "table"
+      ],
+      "knownGap": null,
+      "renderDir": ".tmp/ppt-variant-renders/06_combined_errors"
+    }
+  ]
+}

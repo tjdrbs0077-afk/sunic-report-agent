@@ -25,7 +25,7 @@ cp "_ref/report_ai_prototype/assets/보고양식_Sample_4팀.pptx" app/assets/
 
 ```bash
 run.bat          # 또는 ./run.sh
-curl http://127.0.0.1:8020/health
+curl http://127.0.0.1:8120/health
 ```
 
 ---

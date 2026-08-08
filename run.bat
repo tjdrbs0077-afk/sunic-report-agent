@@ -9,5 +9,6 @@ if not exist .venv (
 )
 echo [2/3] 의존성 설치 중...
 ".venv\Scripts\python.exe" -m pip install -q -r requirements.txt
-echo [3/3] 서버 시작 — http://127.0.0.1:8020
-".venv\Scripts\python.exe" -m uvicorn app.main:app --host 127.0.0.1 --port 8020
+if not defined PORT set "PORT=8120"
+echo [3/3] 서버 시작 — http://127.0.0.1:%PORT%
+".venv\Scripts\python.exe" -m uvicorn app.main:app --host 127.0.0.1 --port %PORT%

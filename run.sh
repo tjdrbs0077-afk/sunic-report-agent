@@ -8,5 +8,6 @@ fi
 source .venv/bin/activate
 echo "[2/3] 의존성 설치 중..."
 python -m pip install -q -r requirements.txt
-echo "[3/3] 서버 시작 — http://127.0.0.1:8020"
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8020
+PORT="${PORT:-8120}"
+echo "[3/3] 서버 시작 — http://127.0.0.1:${PORT}"
+python -m uvicorn app.main:app --host 127.0.0.1 --port "${PORT}"

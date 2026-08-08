@@ -44,11 +44,11 @@ def health():
         "version": VERSION,
         "template": template.name,
         "template_exists": template.exists(),
-        "port": int(os.environ.get("PORT", "8020")),
+        "port": int(os.environ.get("PORT", "8120")),
     }
 
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("app.main:app", host="127.0.0.1", port=int(os.environ.get("PORT", "8020")), reload=False)
+    uvicorn.run("app.main:app", host="127.0.0.1", port=int(os.environ.get("PORT", "8120")), reload=False)
