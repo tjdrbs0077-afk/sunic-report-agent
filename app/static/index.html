@@ -106,7 +106,9 @@
         <h1>보고서 업로드</h1>
         <p>사업단 PPT를 등록하고 양식 검사가 끝나면 바로 상세 편집을 시작합니다</p>
       </div>
-      <span class="demo-badge">DEMO · JSON 저장</span>
+      <div class="top-actions">
+        <button class="btn primary flow-action" onclick="goTo('s4')">다음: 상세 편집 →</button>
+      </div>
     </div>
 
     <div class="grid g2" style="margin-bottom:14px;">
@@ -115,12 +117,12 @@
         <div class="dropzone" id="dz">
           <span class="ic">📄</span>
           <b>PPT 파일을 끌어다 놓거나 클릭하세요</b><br>
-          <span style="font-size:12px;">.pptx · 여러 파일 동시 업로드 가능</span>
+          <span class="dropzone-help">PPTX 파일 · 여러 개 동시 업로드 가능</span>
         </div>
         <input type="file" id="fileInput" accept=".pptx" multiple style="display:none;">
         <div class="filelist" id="fileList"></div>
 
-        <h3 style="margin-top:22px;">시연용 샘플 보고서 <span class="sub">올릴 PPT가 없을 때</span></h3>
+        <h3 class="section-title">시연용 샘플 보고서</h3>
         <div class="selrow" style="margin-bottom:8px;">
           <select id="demoUnitSel"></select>
           <label style="font-size:13px; display:flex; align-items:center; gap:7px;">
@@ -132,11 +134,11 @@
           <button class="btn ghost" id="demoAllBtn">전체 사업단 생성</button>
         </div>
         <div class="prog-label" id="demoStatus" style="margin-top:10px;"></div>
-        <div class="note">모든 내용은 가상 데이터이며 각주에 그 사실이 표시됩니다. ‘양식 위반 섞기’를 켜면
-          비표준 글머리·연속 공백·단계 초과가 섞여 들어가, 페이지 편집의 자동 수정과 미리보기를 시연할 수 있습니다.</div>
+        <div class="note">샘플은 가상 데이터입니다. ‘양식 위반 섞기’로 자동 수정 기능을 테스트할 수 있습니다.</div>
       </div>
       <div class="card">
-        <h3>적용 중인 양식 기준 <span class="sub" id="ruleSource">standard_rules.yaml</span></h3>
+        <h3>양식 기준 설정</h3>
+        <div class="section-meta" id="ruleSource">standard_rules.yaml</div>
         <ul class="rulelist" id="ruleList"></ul>
         <div id="ruleEditor" style="display:none;"></div>
         <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
@@ -146,13 +148,8 @@
           <input type="file" id="ruleTplInput" accept=".pptx" style="display:none;">
         </div>
         <div class="prog-label" id="ruleStatus" style="margin-top:10px;"></div>
-        <div class="note">기준을 바꾸면 이후 양식 검사와 PPT 생성에 바로 반영됩니다. 새 양식 PPTX를 올리면 글꼴·크기·표 규격을 자동으로 실측해 기준을 갱신합니다.</div>
+        <div class="note">변경한 기준은 다음 양식 검사와 PPT 생성부터 적용됩니다.</div>
       </div>
-    </div>
-
-    <div class="flow-next">
-      <div><b>업로드를 마쳤나요?</b><span>보고서를 선택해 내용과 레이아웃을 세부 조정하세요.</span></div>
-      <button class="btn primary" onclick="goTo('s4')">상세 편집으로 →</button>
     </div>
   </section>
 
@@ -206,7 +203,7 @@
       </div>
       <div class="top-actions">
         <button class="btn ghost" onclick="goTo('s3')">원본 비교 · AI 검토</button>
-        <button class="btn primary" onclick="goTo('s7')">편집 완료 · 취합으로 →</button>
+        <button class="btn primary flow-action" onclick="goTo('s7')">다음: 취합 →</button>
       </div>
     </div>
 
