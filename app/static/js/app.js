@@ -17,7 +17,7 @@ function go(id, btn){
   document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
   document.querySelectorAll('.nav button').forEach(function(b){ b.classList.remove('active'); });
-  btn.classList.add('active');
+  if(btn) btn.classList.add('active');
   if(Screens[id] && typeof Screens[id].load === 'function') Screens[id].load();
 }
 function goTo(id){

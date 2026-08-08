@@ -104,6 +104,15 @@ body {
   background:#fff; border:1px solid var(--border); box-shadow: var(--shadow-sm);
   padding: 6px 13px; border-radius: 999px; white-space:nowrap;
 }
+.top-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.flow-next {
+  margin-top:16px; padding:18px 20px; border:1px solid rgba(234,0,44,.12); border-radius:16px;
+  background:var(--accent-soft); display:flex; align-items:center; justify-content:space-between; gap:18px;
+}
+.flow-next div { display:flex; flex-direction:column; gap:2px; }
+.flow-next b { font-size:14px; }
+.flow-next span { color:var(--text-secondary); font-size:12.5px; }
+@media (max-width: 720px){ .flow-next { align-items:stretch; flex-direction:column; } }
 
 .screen { display:none; }
 .screen.active { display:block; animation: fade .22s ease; }
