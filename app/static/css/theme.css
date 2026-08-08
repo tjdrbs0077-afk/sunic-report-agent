@@ -468,36 +468,38 @@ select {
 
 /* ── 홈 화면 ─────────────────────── */
 .home-wrap {
-  min-height: calc(100vh - 130px);
+  min-height: 100vh;
+  margin: -34px -42px -56px;
   display:flex; flex-direction:column; align-items:center; justify-content:center;
-  text-align:center; padding: 20px 0 48px;
+  text-align:center; padding: 54px 28px 64px;
+  background:
+    radial-gradient(420px 220px at 51% 17%, rgba(255,255,255,.48), transparent 70%),
+    linear-gradient(180deg, #f1ece6 0%, #f1dfcf 36%, #e78c78 68%, #cb4864 100%);
 }
-.home-wrap h2 { font-size: 32px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 52px; }
-.home-wrap h2::before {
-  content:""; display:block; width:46px; height:5px; border-radius:99px;
-  background: var(--grad); margin: 0 auto 24px;
+.home-brand { display:flex; flex-direction:column; align-items:center; margin-bottom:42px; }
+.home-brand strong {
+  color:#a50b27; font-size:82px; font-weight:900; line-height:.95; letter-spacing:-.095em;
+  text-shadow:0 2px 0 rgba(255,255,255,.35);
 }
-.home-grid { display:grid; grid-template-columns: repeat(3, 196px); gap: 20px; }
-@media (max-width: 900px){ .home-grid { grid-template-columns: repeat(2, 196px); } }
+.home-brand span { margin-top:18px; color:#625654; font-size:18px; font-weight:450; letter-spacing:-.02em; }
+.home-grid { display:grid; grid-template-columns: repeat(3, 142px); gap: 26px 24px; }
 .home-card {
-  background: var(--surface-1); border: 1px solid var(--border); border-radius: 22px;
-  padding: 38px 16px 30px; cursor: pointer; text-align:center;
-  box-shadow: var(--shadow-sm);
+  appearance:none; border:0; font:inherit; color:#fff;
+  background:#291105; border-radius: 17px;
+  min-height:132px; padding:24px 14px 18px; cursor:pointer; text-align:center;
+  box-shadow:0 4px 0 rgba(117,15,28,.18), 0 12px 26px rgba(56,12,15,.13);
   transition: transform .2s, box-shadow .2s, border-color .2s;
 }
 .home-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 18px 40px rgba(234,0,44,.13);
-  border-color: rgba(234,0,44,.32);
+  box-shadow:0 5px 0 rgba(169,15,41,.4), 0 18px 34px rgba(56,12,15,.22);
 }
 .hicon {
-  width: 64px; height: 64px; border-radius: 20px; margin: 0 auto 18px;
+  width: 48px; height: 48px; margin:0 auto 11px;
   display:flex; align-items:center; justify-content:center;
-  background: var(--grad);
-  box-shadow: 0 8px 20px rgba(234,0,44,.28);
 }
-.hicon svg { width: 28px; height: 28px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.home-card b { font-size: 15px; font-weight:700; display:block; letter-spacing:-.01em; }
+.hicon svg { width: 35px; height: 35px; stroke:#fff; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.home-card b { font-size:14px; font-weight:650; display:block; letter-spacing:-.01em; }
 
 .tooltip {
   position: fixed; pointer-events:none; z-index: 50; background:#221a1e; color:#fff;
@@ -559,7 +561,8 @@ input, textarea, select { min-width: 0; max-width: 100%; }
 }
 @media (max-width: 900px){
   .grid.g4, .grid.g2, .grid.g32 { grid-template-columns: 1fr; }
-  .home-grid { grid-template-columns: repeat(2, minmax(0, 196px)); }
+  .home-wrap { margin:-20px -18px -40px; min-height:calc(100vh - 90px); }
+  .home-grid { grid-template-columns: repeat(2, minmax(0, 142px)); }
   .card { padding: 18px 18px; border-radius: 16px; }
   .topbar h1 { font-size: 20px; }
   .tile .value { font-size: 27px; }
@@ -590,10 +593,12 @@ input, textarea, select { min-width: 0; max-width: 100%; }
   .sidebar .foot { display: none; }
   .main { padding: 20px 16px 40px; }
   .topbar { margin-bottom: 18px; }
-  .home-wrap { min-height: auto; padding: 24px 0 32px; }
-  .home-wrap h2 { font-size: 24px; margin-bottom: 32px; }
+  .home-wrap { min-height:calc(100vh - 90px); padding:42px 18px 46px; }
+  .home-brand { margin-bottom:32px; }
+  .home-brand strong { font-size:62px; }
+  .home-brand span { font-size:15px; margin-top:14px; }
   .home-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; width: 100%; }
-  .home-card { padding: 26px 10px 22px; border-radius: 18px; }
+  .home-card { min-height:118px; padding:20px 10px 16px; border-radius:16px; }
   .hicon { width: 52px; height: 52px; border-radius: 16px; margin-bottom: 12px; }
   .bar-row { grid-template-columns: 86px 1fr 28px; gap: 8px; }
   .bar-row .bl { font-size: 11.5px; }

@@ -10,14 +10,15 @@
 
 <aside class="sidebar">
   <div class="sbar-top">
-    <div class="logo" onclick="goTo('s1')">
+    <div class="logo" onclick="goTo('home')">
       <b>보고서 취합 에이전트</b>
       <span>SUNI 5기 4팀 · 프로토타입 v0.1</span>
     </div>
     <button class="collapse-btn" id="cbtn" onclick="toggleSide()" title="사이드바 접기/펴기">◀</button>
   </div>
   <nav class="nav">
-    <button class="active" data-s="s1" onclick="go('s1',this)"><span class="num">1</span><span class="txt">대시보드</span></button>
+    <button class="active" data-s="home" onclick="go('home',this)"><span class="num">⌂</span><span class="txt">홈</span></button>
+    <button data-s="s1" onclick="go('s1',this)"><span class="num">1</span><span class="txt">대시보드</span></button>
     <button data-s="s2" onclick="go('s2',this)"><span class="num">2</span><span class="txt">업로드</span></button>
     <button data-s="s4" onclick="go('s4',this)"><span class="num">3</span><span class="txt">상세 편집</span></button>
     <button data-s="s7" onclick="go('s7',this)"><span class="num">4</span><span class="txt">취합</span></button>
@@ -29,8 +30,44 @@
 
 <main class="main">
 
+  <!-- ═══════════ 홈 ═══════════ -->
+  <section id="home" class="screen active">
+    <div class="home-wrap">
+      <div class="home-brand" aria-label="Docu-C">
+        <strong>D&amp;C</strong>
+        <span>AI-Powered Report Checking Agent</span>
+      </div>
+      <div class="home-grid">
+        <button class="home-card" onclick="goTo('s1')">
+          <span class="hicon"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg></span>
+          <b>대시보드</b>
+        </button>
+        <button class="home-card" onclick="goTo('s2')">
+          <span class="hicon"><svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span>
+          <b>업로드</b>
+        </button>
+        <button class="home-card" onclick="goTo('s4')">
+          <span class="hicon"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+          <b>상세 편집</b>
+        </button>
+        <button class="home-card" onclick="goTo('s7')">
+          <span class="hicon"><svg viewBox="0 0 24 24"><path d="m12 3 8 4-8 4-8-4 8-4Z"/><path d="m4 12 8 4 8-4M4 17l8 4 8-4"/></svg></span>
+          <b>취합</b>
+        </button>
+        <button class="home-card" onclick="goTo('s5')">
+          <span class="hicon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg></span>
+          <b>챗봇</b>
+        </button>
+        <button class="home-card" onclick="goTo('s6')">
+          <span class="hicon"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M8.5 14.5a7 7 0 1 1 7 0c-.9.7-1.5 1.6-1.5 2.5h-4c0-.9-.6-1.8-1.5-2.5Z"/></svg></span>
+          <b>동향 인사이트</b>
+        </button>
+      </div>
+    </div>
+  </section>
+
   <!-- ═══════════ ① 현황 대시보드 ═══════════ -->
-  <section id="s1" class="screen active">
+  <section id="s1" class="screen">
     <div class="topbar">
       <div>
         <h1>현황 대시보드</h1>
@@ -425,6 +462,5 @@
 <script src="/static/js/screen-editor.js"></script>
 <script src="/static/js/screen-chat.js"></script>
 <script src="/static/js/screen-insight.js"></script>
-<script>Screens.s1.load();</script>
 </body>
 </html>
