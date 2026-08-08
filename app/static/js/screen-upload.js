@@ -1,4 +1,4 @@
-/* ② 업로드 · 취합 — 실제 업로드(XHR 진행률·드래그앤드롭) + /api/merge 연동
+/* ② 업로드 / ④ 취합 — 실제 업로드(XHR 진행률·드래그앤드롭) + /api/merge 연동
    + 양식 기준 직접 수정 · 기준 양식 PPTX 교체 */
 Screens.s2 = (function(){
   var reports = [];
@@ -381,3 +381,6 @@ Screens.s2 = (function(){
     }
   };
 })();
+
+/* 업로드와 취합은 화면만 분리하고 같은 보고서 상태를 공유한다. */
+Screens.s7 = Screens.s2;

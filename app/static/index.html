@@ -10,19 +10,18 @@
 
 <aside class="sidebar">
   <div class="sbar-top">
-    <div class="logo" onclick="goTo('home')">
+    <div class="logo" onclick="goTo('s1')">
       <b>보고서 취합 에이전트</b>
       <span>SUNI 5기 4팀 · 프로토타입 v0.1</span>
     </div>
     <button class="collapse-btn" id="cbtn" onclick="toggleSide()" title="사이드바 접기/펴기">◀</button>
   </div>
   <nav class="nav">
-    <button class="active" data-s="home" onclick="go('home',this)"><span class="num">⌂</span><span class="txt">홈</span></button>
-    <button data-s="s1" onclick="go('s1',this)"><span class="num">1</span><span class="txt">현황 대시보드</span></button>
-    <button data-s="s2" onclick="go('s2',this)"><span class="num">2</span><span class="txt">업로드 · 취합</span></button>
-    <button data-s="s3" onclick="go('s3',this)"><span class="num">3</span><span class="txt">보고서 상세</span></button>
-    <button data-s="s4" onclick="go('s4',this)"><span class="num">4</span><span class="txt">페이지 편집</span></button>
-    <button data-s="s5" onclick="go('s5',this)"><span class="num">5</span><span class="txt">근거형 챗봇</span></button>
+    <button class="active" data-s="s1" onclick="go('s1',this)"><span class="num">1</span><span class="txt">대시보드</span></button>
+    <button data-s="s2" onclick="go('s2',this)"><span class="num">2</span><span class="txt">업로드</span></button>
+    <button data-s="s4" onclick="go('s4',this)"><span class="num">3</span><span class="txt">상세 편집</span></button>
+    <button data-s="s7" onclick="go('s7',this)"><span class="num">4</span><span class="txt">취합</span></button>
+    <button data-s="s5" onclick="go('s5',this)"><span class="num">5</span><span class="txt">챗봇</span></button>
     <button data-s="s6" onclick="go('s6',this)"><span class="num">6</span><span class="txt">동향 인사이트</span></button>
   </nav>
   <div class="foot">데모 단계입니다.<br>저장은 JSON 파일로 관리됩니다.</div>
@@ -30,59 +29,14 @@
 
 <main class="main">
 
-  <!-- ═══════════ 홈 ═══════════ -->
-  <section id="home" class="screen active">
-    <div class="home-wrap">
-      <h2>사내 보고서 취합·편집 에이전트</h2>
-      <div class="home-grid">
-        <div class="home-card" onclick="goTo('s1')">
-          <div class="hicon">
-            <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>
-          </div>
-          <b>현황 대시보드</b>
-        </div>
-        <div class="home-card" onclick="goTo('s2')">
-          <div class="hicon">
-            <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
-          </div>
-          <b>업로드 · 취합</b>
-        </div>
-        <div class="home-card" onclick="goTo('s3')">
-          <div class="hicon">
-            <svg viewBox="0 0 24 24"><rect x="2.5" y="4" width="8.5" height="16" rx="1.5"/><rect x="13" y="4" width="8.5" height="16" rx="1.5"/><path d="M5.5 9h2.5M5.5 13h2.5M16 9h2.5M16 13h2.5"/></svg>
-          </div>
-          <b>보고서 상세</b>
-        </div>
-        <div class="home-card" onclick="goTo('s4')">
-          <div class="hicon">
-            <svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-          </div>
-          <b>페이지 편집</b>
-        </div>
-        <div class="home-card" onclick="goTo('s5')">
-          <div class="hicon">
-            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg>
-          </div>
-          <b>근거형 챗봇</b>
-        </div>
-        <div class="home-card" onclick="goTo('s6')">
-          <div class="hicon">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.4"/><circle cx="5" cy="18" r="2.4"/><circle cx="19" cy="18" r="2.4"/><path d="M10.8 7 6.3 16M13.2 7l4.5 9M7.4 18h9.2"/></svg>
-          </div>
-          <b>동향 인사이트</b>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <!-- ═══════════ ① 현황 대시보드 ═══════════ -->
-  <section id="s1" class="screen">
+  <section id="s1" class="screen active">
     <div class="topbar">
       <div>
         <h1>현황 대시보드</h1>
         <p>업로드된 보고서의 처리 현황과 양식 검사 결과를 한눈에 봅니다</p>
       </div>
-      <span class="demo-badge">DEMO · JSON 저장</span>
+      <button class="btn primary" onclick="goTo('s2')">새 보고서 업로드 →</button>
     </div>
 
     <div class="grid g4" style="margin-bottom:14px;">
@@ -145,14 +99,16 @@
     </div>
   </section>
 
-  <!-- ═══════════ ② 업로드 · 취합 ═══════════ -->
+  <!-- ═══════════ ② 업로드 ═══════════ -->
   <section id="s2" class="screen">
     <div class="topbar">
       <div>
-        <h1>업로드 · 취합</h1>
-        <p>사업단 PPT를 올리면 양식 검사 → 표준 양식 이관 → 통합본 생성 순서로 처리됩니다</p>
+        <h1>보고서 업로드</h1>
+        <p>사업단 PPT를 등록하고 양식 검사가 끝나면 바로 상세 편집을 시작합니다</p>
       </div>
-      <span class="demo-badge">DEMO · JSON 저장</span>
+      <div class="top-actions">
+        <button class="btn primary flow-action" onclick="goTo('s4')">다음: 상세 편집 →</button>
+      </div>
     </div>
 
     <div class="grid g2" style="margin-bottom:14px;">
@@ -161,12 +117,12 @@
         <div class="dropzone" id="dz">
           <span class="ic">📄</span>
           <b>PPT 파일을 끌어다 놓거나 클릭하세요</b><br>
-          <span style="font-size:12px;">.pptx · 여러 파일 동시 업로드 가능</span>
+          <span class="dropzone-help">PPTX 파일 · 여러 개 동시 업로드 가능</span>
         </div>
         <input type="file" id="fileInput" accept=".pptx" multiple style="display:none;">
         <div class="filelist" id="fileList"></div>
 
-        <h3 style="margin-top:22px;">시연용 샘플 보고서 <span class="sub">올릴 PPT가 없을 때</span></h3>
+        <h3 class="section-title">시연용 샘플 보고서</h3>
         <div class="selrow" style="margin-bottom:8px;">
           <select id="demoUnitSel"></select>
           <label style="font-size:13px; display:flex; align-items:center; gap:7px;">
@@ -178,11 +134,11 @@
           <button class="btn ghost" id="demoAllBtn">전체 사업단 생성</button>
         </div>
         <div class="prog-label" id="demoStatus" style="margin-top:10px;"></div>
-        <div class="note">모든 내용은 가상 데이터이며 각주에 그 사실이 표시됩니다. ‘양식 위반 섞기’를 켜면
-          비표준 글머리·연속 공백·단계 초과가 섞여 들어가, 페이지 편집의 자동 수정과 미리보기를 시연할 수 있습니다.</div>
+        <div class="note">샘플은 가상 데이터입니다. ‘양식 위반 섞기’로 자동 수정 기능을 테스트할 수 있습니다.</div>
       </div>
       <div class="card">
-        <h3>적용 중인 양식 기준 <span class="sub" id="ruleSource">standard_rules.yaml</span></h3>
+        <h3>양식 기준 설정</h3>
+        <div class="section-meta" id="ruleSource">standard_rules.yaml</div>
         <ul class="rulelist" id="ruleList"></ul>
         <div id="ruleEditor" style="display:none;"></div>
         <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
@@ -192,25 +148,8 @@
           <input type="file" id="ruleTplInput" accept=".pptx" style="display:none;">
         </div>
         <div class="prog-label" id="ruleStatus" style="margin-top:10px;"></div>
-        <div class="note">기준을 바꾸면 이후 양식 검사와 PPT 생성에 바로 반영됩니다. 새 양식 PPTX를 올리면 글꼴·크기·표 규격을 자동으로 실측해 기준을 갱신합니다.</div>
+        <div class="note">변경한 기준은 다음 양식 검사와 PPT 생성부터 적용됩니다.</div>
       </div>
-    </div>
-
-    <div class="card">
-      <h3>처리 파이프라인</h3>
-      <div class="steps" id="pipeSteps">
-        <div class="step"><span class="dot"></span><span class="sl">업로드 감지</span><span class="ss">PPTX 수신</span></div>
-        <div class="step"><span class="dot"></span><span class="sl">양식 검사 · 이관</span><span class="ss">Python (FastAPI)</span></div>
-        <div class="step"><span class="dot"></span><span class="sl">표준 양식 배열</span><span class="ss">템플릿 실측 좌표</span></div>
-        <div class="step"><span class="dot"></span><span class="sl">통합 PPT 생성</span><span class="ss">업로드 순서 병합</span></div>
-      </div>
-      <div class="bigprog"><div class="f" id="mergeFill"></div></div>
-      <div class="prog-label" id="mergeLabel">대기 중 — 보고서를 업로드해 주세요</div>
-      <div style="display:flex; gap:10px; margin-top:10px;">
-        <button class="btn primary disabled" id="mergeBtn">통합 PPT 생성 실행</button>
-        <button class="btn ghost disabled" id="dlBtn">통합본 다운로드 (.pptx)</button>
-      </div>
-      <div class="note">업로드된 보고서를 업로드 순서대로 표준 양식으로 배열한 뒤 하나로 이어붙입니다. 페이지 편집값이 있으면 함께 반영됩니다.</div>
     </div>
   </section>
 
@@ -218,10 +157,10 @@
   <section id="s3" class="screen">
     <div class="topbar">
       <div>
-        <h1>보고서 상세</h1>
-        <p>원본과 표준 양식 적용본을 비교하고, 양식 위반 내역을 확인합니다</p>
+        <h1>원본 비교 · AI 검토</h1>
+        <p>상세 편집에 필요한 경우 원본과 교정본, 양식 위반 및 AI 피드백을 함께 확인합니다</p>
       </div>
-      <span class="demo-badge">DEMO · JSON 저장</span>
+      <button class="btn ghost" onclick="goTo('s4')">← 상세 편집으로 돌아가기</button>
     </div>
 
     <div class="selrow">
@@ -255,14 +194,17 @@
     </div>
   </section>
 
-  <!-- ═══════════ ④ 페이지 편집 ═══════════ -->
+  <!-- ═══════════ ③ 상세 편집 ═══════════ -->
   <section id="s4" class="screen">
     <div class="topbar">
       <div>
-        <h1>페이지 편집</h1>
-        <p>표준 양식 좌표를 페이지 단위로 조정합니다 · 드래그 이동 / 우하단 핸들 크기 조절 / Ctrl+Z 실행 취소</p>
+        <h1>상세 편집</h1>
+        <p>내용과 레이아웃을 페이지 단위로 조정한 뒤 취합 단계로 넘깁니다</p>
       </div>
-      <span class="demo-badge">DEMO · JSON 저장</span>
+      <div class="top-actions">
+        <button class="btn ghost" onclick="goTo('s3')">원본 비교 · AI 검토</button>
+        <button class="btn primary flow-action" onclick="goTo('s7')">다음: 취합 →</button>
+      </div>
     </div>
 
     <div class="selrow">
@@ -341,6 +283,34 @@
         <h3 style="margin-top:22px;">내용 편집 <span class="sub" id="edTextLabel"></span></h3>
         <div id="edTextPanel"></div>
       </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ ④ 취합 ═══════════ -->
+  <section id="s7" class="screen">
+    <div class="topbar">
+      <div>
+        <h1>보고서 취합</h1>
+        <p>상세 편집이 끝난 보고서를 순서대로 배열해 하나의 통합 PPT로 생성합니다</p>
+      </div>
+      <button class="btn ghost" onclick="goTo('s4')">← 상세 편집으로</button>
+    </div>
+
+    <div class="card">
+      <h3>취합 진행 상태</h3>
+      <div class="steps" id="pipeSteps">
+        <div class="step"><span class="dot"></span><span class="sl">업로드 완료</span><span class="ss">PPTX 수신</span></div>
+        <div class="step"><span class="dot"></span><span class="sl">양식 검사 · 편집</span><span class="ss">수정값 반영</span></div>
+        <div class="step"><span class="dot"></span><span class="sl">표준 양식 배열</span><span class="ss">템플릿 실측 좌표</span></div>
+        <div class="step"><span class="dot"></span><span class="sl">통합 PPT 생성</span><span class="ss">업로드 순서 병합</span></div>
+      </div>
+      <div class="bigprog"><div class="f" id="mergeFill"></div></div>
+      <div class="prog-label" id="mergeLabel">대기 중 — 보고서를 업로드해 주세요</div>
+      <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+        <button class="btn primary disabled" id="mergeBtn">통합 PPT 생성 실행</button>
+        <button class="btn ghost disabled" id="dlBtn">통합본 다운로드 (.pptx)</button>
+      </div>
+      <div class="note">업로드된 보고서를 업로드 순서대로 표준 양식에 배열합니다. 상세 편집에서 저장한 내용과 레이아웃이 최종본에 함께 반영됩니다.</div>
     </div>
   </section>
 
@@ -455,5 +425,6 @@
 <script src="/static/js/screen-editor.js"></script>
 <script src="/static/js/screen-chat.js"></script>
 <script src="/static/js/screen-insight.js"></script>
+<script>Screens.s1.load();</script>
 </body>
 </html>
