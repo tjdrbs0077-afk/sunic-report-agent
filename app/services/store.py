@@ -28,7 +28,11 @@ def report_payload(report_id: str) -> dict[str, Any]:
     path = config.DATA / f"{report_id}.json"
     if not path.exists():
         raise HTTPException(404, "보고서를 찾을 수 없습니다.")
-    return json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    # 과거 버전에서 저장한 제목 중복·① 같은 독립 번호도 재업로드 없이 정리한다.
+    from app.services.ingest import normalize_payload_content
+
+    return normalize_payload_content(payload)
 
 
 def save_report_payload(report_id: str, payload: dict[str, Any]) -> None:

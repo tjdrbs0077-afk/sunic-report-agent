@@ -22,6 +22,7 @@ from pptx.oxml.ns import qn
 from pptx.util import Inches, Pt
 
 from app import config
+from app.services.ingest import normalize_body_items
 
 EMU = 914400
 BLACK = RGBColor(0, 0, 0)
@@ -95,17 +96,7 @@ def clean_body_items(items: list[dict[str, Any]], page_title: str) -> list[dict[
     ingest 수정 이전에 추출된 기존 보고서 JSON 을 위한 방어선이다
     (재업로드 없이도 생성 결과가 깨끗해진다).
     """
-    title_key = (page_title or "").strip().casefold()
-    section_re = re.compile(r"^\d{1,2}\.\s*[A-Z0-9 &/\-]+$")
-    cleaned = []
-    for item in items or []:
-        text = (item.get("text") or "").strip()
-        if not text:
-            continue
-        if text.casefold() == title_key or section_re.fullmatch(text):
-            continue
-        cleaned.append(item)
-    return cleaned or list(items or [])
+    return normalize_body_items(items, page_title)
 
 
 def inch(v: int | float) -> float:
@@ -713,6 +704,8 @@ def _overflow_policy() -> dict[str, Any]:
 def _chunk_body(items: list[dict[str, Any]], width_in: float, first_h: float,
                 cont_h: float, sizes: list[float], min_scale: float) -> list[list[dict[str, Any]]]:
     """본문을 상자에 들어갈 만큼씩 나눈다. 첫 장과 이어지는 장의 높이가 다르다."""
+    if not items:
+        return [[]]
     chunks: list[list[dict[str, Any]]] = []
     rest = list(items)
     while rest:

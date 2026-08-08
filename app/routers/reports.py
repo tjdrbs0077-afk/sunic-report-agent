@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from app import config
 from app.services import store, validator
-from app.services.ingest import extract_presentation, safe_stem
+from app.services.ingest import extract_presentation, normalize_body_items, safe_stem
 
 router = APIRouter(prefix="/api", tags=["reports"])
 
@@ -62,6 +62,7 @@ async def upload_ppts(files: list[UploadFile] = File(...)):
             payload["validation"] = validator.validate_pptx(target)
             # 원문 스냅샷 — 페이지 편집의 '원문 복원' 기준
             payload["original_slides"] = copy.deepcopy(payload["slides"])
+            payload["ingest_version"] = 2
             payload["uploaded_at"] = datetime.now().isoformat(timespec="seconds")
             payload["processing_seconds"] = round(time.perf_counter() - started, 2)
             store.save_report_payload(report_id, payload)
@@ -126,6 +127,7 @@ def patch_slide(report_id: str, slide_no: int, patch: SlidePatch):
                 "level": max(0, min(4, int(item.get("level", 0) or 0))),
                 "bold": item.get("bold"),
             })
+        cleaned = normalize_body_items(cleaned, changes.get("page_title", target.get("page_title", "")))
         if not cleaned:
             raise HTTPException(400, "본문은 최소 한 줄이 있어야 합니다.")
         changes["body"] = cleaned

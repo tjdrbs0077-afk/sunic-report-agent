@@ -16,6 +16,7 @@ from pptx.oxml.ns import qn
 from pptx.util import Inches
 
 from app import config
+from app.services.ingest import normalize_body_items, strip_explicit_list_prefix
 
 CATEGORY_SEVERITY = {
     "글머리 기호": "high",
@@ -342,9 +343,16 @@ def validate_slides(payload: dict[str, Any]) -> dict[str, Any]:
         for i, item in enumerate(slide.get("body", [])):
             text = str(item.get("text", ""))
             stripped = text.strip()
+            without_prefix = strip_explicit_list_prefix(stripped)
             if stripped and stripped[0] in BAD_BULLET_CHARS:
                 add("글머리 기호", no, f"'{stripped[0]}' → 표준 글머리로 교체",
                     f"{i + 1}번째 문단 “{stripped[:24]}”", "body", i)
+            elif stripped and without_prefix != stripped:
+                label = stripped if not without_prefix else stripped[: len(stripped) - len(without_prefix)].strip()
+                add("글머리 기호", no, f"기존 번호 '{label}' 제거 후 표준 번호 적용",
+                    f"{i + 1}번째 문단 “{stripped[:24]}”", "body", i)
+            if stripped.casefold() == str(slide.get("page_title", "")).strip().casefold():
+                add("정리", no, "본문에 반복된 페이지 제목 제거", f"{i + 1}번째 문단", "body", i)
             if cleanup.get("collapse_spaces", True) and re.search(r"  +", text):
                 add("정리", no, "연속 공백 → 1칸으로 축소", f"{i + 1}번째 문단", "body", i)
             if int(item.get("level", 0)) > max_level:
@@ -412,7 +420,7 @@ def _matches(before: str, after: str) -> bool:
     b = re.sub(r"\s+", "", after)
     if not b:
         return False
-    a_clean = a[1:] if a and a[0] in BAD_BULLET_CHARS else a
+    a_clean = re.sub(r"\s+", "", strip_explicit_list_prefix(before))
     return a_clean == b or a == b or b in a_clean or a_clean in b
 
 
@@ -442,18 +450,13 @@ def autofix_slides(payload: dict[str, Any], slide_no: int | None = None) -> int:
         title, n = clean(slide.get("page_title", ""))
         slide["page_title"] = title
         fixed += n
-        body = []
-        for item in slide.get("body", []):
-            text, n = clean(item.get("text", ""))
-            fixed += n
-            if not text.strip():
-                fixed += 1
-                continue
-            level = int(item.get("level", 0))
-            if level > max_level:
-                level = max_level
-                fixed += 1
-            body.append({"text": text, "level": level, "bold": item.get("bold")})
-        if body:
+        before_body = slide.get("body", [])
+        body = normalize_body_items(before_body, title)
+        for item in body:
+            if int(item.get("level", 0)) > max_level:
+                item["level"] = max_level
+        if before_body != body:
+            paired_changes = sum(1 for old, new in zip(before_body, body) if old != new)
+            fixed += max(1, abs(len(before_body) - len(body)) + paired_changes)
             slide["body"] = body
     return fixed
