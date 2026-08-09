@@ -306,6 +306,11 @@
     <div class="grid ed-grid">
       <div class="card editor-side-card editor-nav-card">
         <h3>페이지</h3>
+        <div class="editor-page-stepper" aria-label="슬라이드 페이지 이동">
+          <button type="button" id="edPrevSlide" class="editor-page-arrow" aria-label="이전 슬라이드" title="이전 슬라이드">←</button>
+          <span id="edPageCounter" aria-live="polite">0 / 0</span>
+          <button type="button" id="edNextSlide" class="editor-page-arrow" aria-label="다음 슬라이드" title="다음 슬라이드">→</button>
+        </div>
         <div id="edSlideNav" style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:16px;"></div>
         <h3>편집 개체</h3>
         <div id="edObjectList" style="display:flex; flex-direction:column; gap:6px;"></div>
