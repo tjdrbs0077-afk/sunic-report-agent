@@ -19,7 +19,7 @@
 | # | id | 화면 | 주요 API |
 |---|----|------|----------|
 | ⌂ | home | 홈 | — |
-| 1 | s1 | 현황 대시보드 | `/api/stats` |
+| 1 | s1 | 현황 대시보드 | `/api/stats`, `/api/reports/{id}/archive`, `/api/reports/{id}/unarchive` |
 | 2 | s2 · s7 | 업로드 · 다운로드 | `/api/reports/upload`, `/api/generate`, `/api/merge` |
 | 3 | s3 | 보고서 상세 | `/api/reports/{id}`, `/api/reports/{id}/rules` |
 | 4 | s4 | 페이지 편집 | `/api/layouts`, `/api/generate` |

@@ -108,16 +108,22 @@
 
     <div class="grid g32 section-gap">
       <div class="card">
-        <h3>보고서별 제출 · 처리 현황</h3>
+        <div class="dashboard-project-head">
+          <h3 id="dashProjectTitle">현재 프로젝트</h3>
+          <div class="dashboard-view-switch" role="tablist" aria-label="프로젝트 목록 선택">
+            <button type="button" class="active" role="tab" aria-selected="true" data-dashboard-view="active">현재 프로젝트</button>
+            <button type="button" role="tab" aria-selected="false" data-dashboard-view="archived">보관함 <span id="dashArchiveCount">0</span></button>
+          </div>
+        </div>
         <div class="scroll-x">
-          <table style="min-width:460px;">
-            <thead><tr><th>보고서</th><th>제출</th><th>처리 상태</th><th class="num">오류</th><th class="num">제출 시각</th></tr></thead>
+          <table style="min-width:560px;">
+            <thead><tr><th>보고서</th><th>처리 상태</th><th class="num">오류</th><th class="num" id="dashDateHead">등록 시각</th><th class="num">관리</th></tr></thead>
             <tbody id="dashTable"></tbody>
           </table>
         </div>
         <div id="dashEmpty" style="display:none;">
-          <div class="note">업로드된 보고서가 없습니다.</div>
-          <div style="margin-top:12px;"><button class="btn ghost" onclick="goTo('s2')">업로드 화면으로 이동</button></div>
+          <div class="note" id="dashEmptyText">업로드된 보고서가 없습니다.</div>
+          <div id="dashEmptyAction" style="margin-top:12px;"><button class="btn ghost" onclick="goTo('s2')">업로드 화면으로 이동</button></div>
         </div>
       </div>
       <div>

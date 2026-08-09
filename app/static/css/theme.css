@@ -187,6 +187,18 @@ td { padding: 12px; border-bottom: 1px solid var(--grid); }
 tr:last-child td { border-bottom: none; }
 td.num, th.num { text-align:right; font-variant-numeric: tabular-nums; }
 tr.rowhover:hover td { background:#fbf6f4; }
+.dashboard-project-head { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:16px; }
+.dashboard-project-head h3 { margin:0; }
+.dashboard-view-switch {
+  display:inline-flex; gap:3px; padding:3px; border:1px solid var(--baseline); border-radius:11px; background:#f3efed;
+}
+.dashboard-view-switch button {
+  border:0; border-radius:8px; padding:7px 11px; background:transparent; color:var(--text-secondary);
+  font:inherit; font-size:12.5px; font-weight:700; cursor:pointer;
+}
+.dashboard-view-switch button.active { background:#fff; color:var(--accent-deep); box-shadow:var(--shadow-sm); }
+.dashboard-view-switch button span { display:inline-flex; min-width:19px; justify-content:center; margin-left:3px; padding:0 5px; border-radius:99px; background:var(--grid); font-size:11px; }
+.dashboard-row-action { min-height:34px; padding:6px 12px; font-size:12px; }
 
 /* 바 차트 */
 .bar-row { display:grid; grid-template-columns: 118px 1fr 34px; align-items:center; gap:10px; margin: 10px 0; }
@@ -719,6 +731,9 @@ input, textarea, select { min-width: 0; max-width: 100%; }
 }
 @media (max-width: 900px){
   .grid.g4, .grid.g2, .grid.g32 { grid-template-columns: 1fr; }
+  .dashboard-project-head { align-items:flex-start; flex-direction:column; }
+  .dashboard-view-switch { width:100%; }
+  .dashboard-view-switch button { flex:1; }
   .download-mode-switch { display:flex; width:100%; }
   .download-mode-switch button { flex:1; min-width:0; }
   .individual-download-list { grid-template-columns:1fr; }

@@ -67,6 +67,8 @@ def upsert_report_index(payload: dict[str, Any]) -> dict[str, Any]:
         "source_file": unit.get("source_file", ""),
         "issue_count": payload.get("validation", {}).get("total", 0),
         "status": "done",
+        "archived": False,
+        "archived_at": "",
         "uploaded_at": payload.get("uploaded_at", ""),
         "processing_seconds": payload.get("processing_seconds", 0),
     }

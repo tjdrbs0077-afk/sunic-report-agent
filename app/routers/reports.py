@@ -30,9 +30,13 @@ class SlidePatch(BaseModel):
     timeline_note: list[str] | None = None
 
 
+def filter_report_index(items: list[dict[str, Any]], archived: bool = False) -> list[dict[str, Any]]:
+    return [item for item in items if bool(item.get("archived", False)) == archived]
+
+
 @router.get("/reports")
-def reports() -> list[dict[str, Any]]:
-    return store.load_report_index()
+def reports(archived: bool = False) -> list[dict[str, Any]]:
+    return filter_report_index(store.load_report_index(), archived)
 
 
 @router.get("/reports/{report_id}")
@@ -90,6 +94,29 @@ def delete_report(report_id: str):
     for file in config.UPLOADS.glob(f"{report_id}_*.pptx"):
         file.unlink(missing_ok=True)
     return {"ok": True}
+
+
+def _set_report_archived(report_id: str, archived: bool) -> dict[str, Any]:
+    index = store.load_report_index()
+    target = next((item for item in index if item.get("id") == report_id), None)
+    if target is None:
+        raise HTTPException(404, "보고서를 찾을 수 없습니다.")
+    if archived and target.get("status", "done") != "done":
+        raise HTTPException(400, "처리가 완료된 보고서만 보관할 수 있습니다.")
+    target["archived"] = archived
+    target["archived_at"] = datetime.now().isoformat(timespec="seconds") if archived else ""
+    store.save_report_index(index)
+    return target
+
+
+@router.post("/reports/{report_id}/archive")
+def archive_report(report_id: str):
+    return {"ok": True, "report": _set_report_archived(report_id, True)}
+
+
+@router.post("/reports/{report_id}/unarchive")
+def unarchive_report(report_id: str):
+    return {"ok": True, "report": _set_report_archived(report_id, False)}
 
 
 @router.get("/reports/{report_id}/rules")
@@ -204,7 +231,8 @@ def restore(report_id: str, slide_no: int | None = None):
 @router.get("/stats")
 def stats() -> dict[str, Any]:
     """대시보드 집계 — 보고서 수·처리 완료·양식 오류 총계·유형별 집계·평균 처리 시간."""
-    index = store.load_report_index()
+    full_index = store.load_report_index()
+    index = filter_report_index(full_index, False)
     by_category: dict[str, int] = {}
     issue_total = 0
     durations: list[float] = []
@@ -230,4 +258,5 @@ def stats() -> dict[str, Any]:
         ],
         "avg_processing_seconds": round(sum(durations) / len(durations), 2) if durations else 0,
         "generated_count": len(generated),
+        "archived_count": len(filter_report_index(full_index, True)),
     }
