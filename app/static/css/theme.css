@@ -54,7 +54,12 @@ body {
 }
 .sbar-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px;
   padding: 26px 14px 20px 22px; }
-.sidebar .logo { cursor:pointer; min-width:0; }
+.sidebar .logo { cursor:pointer; min-width:0; display:flex; align-items:center; gap:10px; }
+.sidebar-brand-mark {
+  width:58px; height:40px; display:inline-flex; align-items:center; justify-content:center;
+  overflow:hidden; flex:none;
+}
+.sidebar-brand-mark img { width:100%; height:100%; object-fit:contain; flex:none; }
 .sidebar .logo b { font-size: 15.5px; font-weight: 800; display:block; letter-spacing:-.01em; white-space:nowrap; }
 .sidebar .logo span { font-size: 11px; font-weight:500; color:#b8858f; display:block; margin-top:4px; white-space:nowrap; letter-spacing:.02em; }
 .collapse-btn {
@@ -533,6 +538,9 @@ select {
     linear-gradient(180deg, #f1ece6 0%, #f1dfcf 36%, #e78c78 68%, #cb4864 100%);
 }
 .home-brand { display:flex; flex-direction:column; align-items:center; margin-bottom:42px; }
+.home-logo {
+  width:300px; height:214px; object-fit:contain; object-position:center;
+}
 .home-brand strong {
   color:#a50b27; font-size:82px; font-weight:900; line-height:.95; letter-spacing:-.095em;
   text-shadow:0 2px 0 rgba(255,255,255,.35);
@@ -651,7 +659,7 @@ input, textarea, select { min-width: 0; max-width: 100%; }
   .topbar { margin-bottom: 18px; }
   .home-wrap { min-height:calc(100vh - 90px); padding:42px 18px 46px; }
   .home-brand { margin-bottom:32px; }
-  .home-brand strong { font-size:62px; }
+  .home-logo { width:238px; height:170px; }
   .home-brand span { font-size:15px; margin-top:14px; }
   .home-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; width: 100%; }
   .home-card { min-height:118px; padding:20px 10px 16px; border-radius:16px; }
