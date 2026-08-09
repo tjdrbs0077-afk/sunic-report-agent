@@ -17,12 +17,12 @@
     <button class="collapse-btn" id="cbtn" onclick="toggleSide()" title="사이드바 접기/펴기">◀</button>
   </div>
   <nav class="nav">
-    <button class="active" data-s="home" onclick="go('home',this)"><span class="num nav-icon">⌂</span><span class="txt">홈</span></button>
-    <button data-s="s1" onclick="go('s1',this)"><span class="num nav-icon">▥</span><span class="txt">대시보드</span></button>
-    <button data-s="s8" onclick="go('s8',this)"><span class="num nav-icon">▤</span><span class="txt">보고서 양식 관리</span></button>
+    <button class="active" data-s="home" onclick="go('home',this)"><span class="num nav-icon"><svg viewBox="0 0 24 24"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10M9 20v-6h6v6"/></svg></span><span class="txt">홈</span></button>
+    <button data-s="s1" onclick="go('s1',this)"><span class="num nav-icon"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg></span><span class="txt">대시보드</span></button>
+    <button data-s="s8" onclick="go('s8',this)"><span class="num nav-icon"><svg viewBox="0 0 24 24"><path d="M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span><span class="txt">보고서 양식 관리</span></button>
     <div class="nav-group" data-group="editing">
       <button class="nav-parent" type="button" aria-expanded="false" onclick="toggleNavGroup('editing')">
-        <span class="num nav-icon">✎</span><span class="txt">보고서 편집</span><span class="nav-chevron">⌄</span>
+        <span class="num nav-icon"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span><span class="txt">보고서 편집</span><span class="nav-chevron">⌄</span>
       </button>
       <div class="nav-submenu">
         <button data-s="s2" onclick="go('s2',this)"><span class="sub-dot"></span><span class="txt">보고서 업로드</span></button>
@@ -32,7 +32,7 @@
     </div>
     <div class="nav-group" data-group="understanding">
       <button class="nav-parent" type="button" aria-expanded="false" onclick="toggleNavGroup('understanding')">
-        <span class="num nav-icon">◌</span><span class="txt">보고서 이해하기</span><span class="nav-chevron">⌄</span>
+        <span class="num nav-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg></span><span class="txt">보고서 이해하기</span><span class="nav-chevron">⌄</span>
       </button>
       <div class="nav-submenu">
         <button data-s="s5" onclick="go('s5',this)"><span class="sub-dot"></span><span class="txt">챗봇</span></button>

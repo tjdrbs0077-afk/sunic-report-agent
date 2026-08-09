@@ -85,6 +85,10 @@ body {
 }
 .nav button.active .num { background: rgba(255,255,255,.22); }
 .nav-icon { font-size:15px !important; }
+.nav-icon svg {
+  width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.8;
+  stroke-linecap:round; stroke-linejoin:round;
+}
 .nav-group { display:flex; flex-direction:column; gap:2px; }
 .nav-parent { width:100%; }
 .nav-chevron { margin-left:auto; font-size:16px; transition:transform .18s; }
@@ -150,7 +154,7 @@ body {
   background:#f5f1ef; color:var(--text-secondary); font-size:13px; font-weight:650;
 }
 #s2 .grid > .card:first-child { border-top:3px solid var(--accent); }
-.template-management-card { max-width:980px; border-top:3px solid var(--accent); }
+.template-management-card { width:100%; border-top:3px solid var(--accent); }
 .template-actions { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
 .template-actions + .prog-label { margin-top:10px; }
 
@@ -561,7 +565,7 @@ select {
 }
 .home-brand span { margin-top:18px; color:#625654; font-size:18px; font-weight:450; letter-spacing:-.02em; }
 .home-grid { display:grid; grid-template-columns: repeat(3, 142px); gap: 26px 24px; }
-.home-grid-four { grid-template-columns:repeat(2, 164px); }
+.home-grid-four { grid-template-columns:repeat(4, 142px); }
 .home-card {
   appearance:none; border:0; font:inherit; color:#fff;
   background:#291105; border-radius: 17px;
