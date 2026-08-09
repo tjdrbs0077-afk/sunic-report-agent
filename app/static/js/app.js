@@ -16,6 +16,7 @@ function activeScreenId(){
 function go(id, btn){
   document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
   document.querySelectorAll('.nav button').forEach(function(b){ b.classList.remove('active'); });
   document.querySelectorAll('.nav-group').forEach(function(group){ group.classList.remove('child-active'); });
   if(btn){
