@@ -200,34 +200,62 @@
       <button class="btn ghost" onclick="goTo('s4')">← 상세 편집으로 돌아가기</button>
     </div>
 
-    <div class="selrow">
-      <label style="font-size:13px; color:var(--text-secondary);">보고서 선택</label>
-      <select id="detReportSel"></select>
-      <span id="detSlideNav" style="display:flex; gap:6px; flex-wrap:wrap;"></span>
-      <span class="chip wait" id="detChip" style="margin-left:auto;">보고서 없음</span>
+    <div class="detail-toolbar">
+      <div class="detail-report-field">
+        <label for="detReportSel">보고서</label>
+        <select id="detReportSel"></select>
+      </div>
+      <div class="detail-pages">
+        <span class="detail-toolbar-label">페이지</span>
+        <span id="detSlideNav"></span>
+      </div>
+      <span class="chip wait" id="detChip">보고서 없음</span>
     </div>
 
-    <div class="grid g2" style="margin-bottom:14px;">
-      <div class="card">
-        <div class="pane-label"><span class="tag orig">원본</span> <span id="detOrigLabel">추출된 슬라이드</span></div>
-        <div class="slide-mock" id="detOrig"></div>
+    <div class="card detail-compare-card">
+      <div class="detail-section-head">
+        <div>
+          <h3>슬라이드 비교</h3>
+          <p>원본과 표준 양식 적용 결과를 같은 기준으로 확인합니다.</p>
+        </div>
+        <div class="detail-view-switch" role="group" aria-label="비교 화면 보기 방식">
+          <button class="active" type="button" data-view="both">나란히</button>
+          <button type="button" data-view="original">원본만</button>
+          <button type="button" data-view="fixed">교정본만</button>
+        </div>
       </div>
-      <div class="card">
-        <div class="pane-label"><span class="tag fixd">교정본</span> 표준 양식으로 새로 이관됨</div>
-        <div class="slide-mock" id="detFixed" style="border-color:#bfe0bf;"></div>
+      <div class="detail-compare-grid" id="detCompareGrid" data-view="both">
+        <article class="detail-pane detail-pane-original">
+          <div class="pane-label"><span class="tag orig">원본</span> <span id="detOrigLabel">추출된 슬라이드</span></div>
+          <div class="slide-mock" id="detOrig"></div>
+        </article>
+        <article class="detail-pane detail-pane-fixed">
+          <div class="pane-label"><span class="tag fixd">교정본</span> 표준 양식 적용 결과</div>
+          <div class="slide-mock" id="detFixed"></div>
+        </article>
       </div>
     </div>
 
-    <div class="grid g2">
-      <div class="card">
-        <h3>수정 내역 <span class="sub" id="detFixCount"></span></h3>
+    <div class="card detail-review-card">
+      <div class="detail-review-tabs" role="tablist" aria-label="검토 내역">
+        <button class="active" type="button" role="tab" aria-selected="true" data-panel="changes">
+          수정 내역 <span id="detFixCount"></span>
+        </button>
+        <button type="button" role="tab" aria-selected="false" data-panel="feedback">AI 피드백</button>
+      </div>
+      <section class="detail-review-panel active" id="detPanelChanges" role="tabpanel">
+        <div class="detail-panel-intro">
+          <b>자동 교정 요약</b><span>발견된 양식 위반과 적용된 교정을 유형별로 보여줍니다.</span>
+        </div>
         <ul class="fixlist" id="detFixList"></ul>
-      </div>
-      <div class="card">
-        <h3>AI 내용 피드백 <span class="sub">체크한 항목만 최종본에 반영</span></h3>
-        <div id="detFbList"></div>
-        <div class="note">⚠️ PPT 댓글 기능은 도구 제약으로 사용할 수 없어, 선택된 피드백은 해당 슬라이드의 <b>발표자 노트</b>에 기록됩니다.</div>
-      </div>
+      </section>
+      <section class="detail-review-panel" id="detPanelFeedback" role="tabpanel" hidden>
+        <div class="detail-panel-intro">
+          <b>AI 내용 검토</b><span>필요한 제안만 선택해 최종본 발표자 노트에 반영합니다.</span>
+        </div>
+        <div id="detFbList"><div class="note">AI 피드백 탭을 열면 내용을 검토합니다.</div></div>
+        <div class="note detail-feedback-note">선택된 피드백은 해당 슬라이드의 <b>발표자 노트</b>에 기록됩니다.</div>
+      </section>
     </div>
   </section>
 

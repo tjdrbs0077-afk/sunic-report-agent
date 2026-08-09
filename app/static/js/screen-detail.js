@@ -4,6 +4,7 @@ Screens.s3 = (function(){
   var payload = null;
   var validation = null;
   var slideNo = 1;
+  var activeReviewPanel = 'changes';
   var fbCache = {};   // report_id → fb 렌더링 HTML
   var BAD_BULLETS = '▶▷◆◇■□※✓√●○◎☞▸»*·◦▪';
   var STD_BULLETS = ['1.', '1)', '❑', '–', '•'];
@@ -157,6 +158,31 @@ Screens.s3 = (function(){
     });
   }
 
+  function setCompareView(view){
+    var grid = document.getElementById('detCompareGrid');
+    if(!grid) return;
+    grid.dataset.view = view;
+    document.querySelectorAll('.detail-view-switch button').forEach(function(btn){
+      btn.classList.toggle('active', btn.dataset.view === view);
+    });
+  }
+
+  function setReviewPanel(panel){
+    activeReviewPanel = panel;
+    document.querySelectorAll('.detail-review-tabs button').forEach(function(btn){
+      var active = btn.dataset.panel === panel;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    var changes = document.getElementById('detPanelChanges');
+    var feedback = document.getElementById('detPanelFeedback');
+    changes.hidden = panel !== 'changes';
+    feedback.hidden = panel !== 'feedback';
+    changes.classList.toggle('active', panel === 'changes');
+    feedback.classList.toggle('active', panel === 'feedback');
+    if(panel === 'feedback' && payload) renderFeedback();
+  }
+
   function bindFb(box){
     box.querySelectorAll('input').forEach(function(cb){
       cb.addEventListener('change', function(){
@@ -181,7 +207,7 @@ Screens.s3 = (function(){
       renderNav();
       renderSlide();
       renderFixList();
-      renderFeedback();
+      if(activeReviewPanel === 'feedback') renderFeedback();
     });
   }
 
@@ -200,6 +226,12 @@ Screens.s3 = (function(){
   function bind(){
     if(bound) return; bound = true;
     sel().onchange = function(){ choose(sel().value); };
+    document.querySelectorAll('.detail-view-switch button').forEach(function(btn){
+      btn.onclick = function(){ setCompareView(btn.dataset.view); };
+    });
+    document.querySelectorAll('.detail-review-tabs button').forEach(function(btn){
+      btn.onclick = function(){ setReviewPanel(btn.dataset.panel); };
+    });
   }
 
   return {
