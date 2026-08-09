@@ -1,4 +1,4 @@
-/* ② 업로드 / ④ 취합 — 실제 업로드(XHR 진행률·드래그앤드롭) + /api/merge 연동
+/* ② 업로드 / ④ 다운로드 — 실제 업로드(XHR 진행률·드래그앤드롭) + 개별 생성·통합 병합
    + 양식 기준 직접 수정 · 기준 양식 PPTX 교체 */
 Screens.s2 = (function(){
   var reports = [];
@@ -213,6 +213,70 @@ Screens.s2 = (function(){
     });
   }
 
+  function startDownload(url, name){
+    var link = document.createElement('a');
+    link.href = encodeURI(url);
+    link.download = name || '';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  function renderIndividualDownloads(){
+    var list = $id('individualDownloadList');
+    if(!list) return;
+    if(!reports.length){
+      list.innerHTML = '<div class="individual-download-empty">다운로드할 보고서가 없습니다.<br>먼저 보고서를 업로드해 주세요.</div>';
+      return;
+    }
+    list.innerHTML = reports.map(function(r){
+      return '<div class="individual-download-item">' +
+        '<div class="individual-download-info"><b>' + esc(r.name) + '</b>' +
+        '<span class="individual-download-status">' + r.slide_count + '페이지 · 저장된 편집값 반영</span></div>' +
+        '<button class="btn ghost" data-individual="' + esc(r.id) + '">다운로드</button></div>';
+    }).join('');
+    list.querySelectorAll('button[data-individual]').forEach(function(btn){
+      btn.onclick = function(){
+        if(btn.dataset.download){
+          startDownload(btn.dataset.download, btn.dataset.filename);
+          return;
+        }
+        var row = btn.closest('.individual-download-item');
+        var status = row.querySelector('.individual-download-status');
+        btn.disabled = true;
+        btn.textContent = '준비 중…';
+        status.textContent = '다운로드 파일을 준비하는 중입니다…';
+        API.post('/api/generate', { report_id: btn.dataset.individual, edited_copy: true })
+          .then(function(res){
+            var name = decodeURIComponent(res.download.split('/').pop());
+            btn.dataset.download = res.download;
+            btn.dataset.filename = name;
+            btn.textContent = '다시 다운로드';
+            status.textContent = '다운로드 준비 완료 · ' + res.slide_count + '슬라이드';
+            startDownload(res.download, name);
+          })
+          .catch(function(e){
+            btn.textContent = '다시 시도';
+            status.textContent = '다운로드 준비 실패: ' + e.message;
+          })
+          .then(function(){ btn.disabled = false; });
+      };
+    });
+  }
+
+  function setDownloadMode(mode){
+    document.querySelectorAll('[data-download-mode]').forEach(function(btn){
+      var active = btn.dataset.downloadMode === mode;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-download-panel]').forEach(function(panel){
+      var active = panel.dataset.downloadPanel === mode;
+      panel.classList.toggle('active', active);
+      panel.hidden = !active;
+    });
+  }
+
   function updateMergeReady(){
     var btn = $id('mergeBtn');
     if(reports.length >= 2 && !merging){
@@ -229,6 +293,7 @@ Screens.s2 = (function(){
     return API.get('/api/reports').then(function(r){
       reports = r;
       renderFileList();
+      renderIndividualDownloads();
       resetStepsFromReports();
       updateMergeReady();
     });
@@ -292,7 +357,7 @@ Screens.s2 = (function(){
     chain.then(refresh);
   }
 
-  /* ── 통합 생성 ── */
+  /* ── 통합본 생성 ── */
   function runMerge(){
     if(merging || reports.length < 2) return;
     merging = true;
@@ -349,6 +414,9 @@ Screens.s2 = (function(){
     });
     dz.addEventListener('drop', function(e){ uploadFiles(e.dataTransfer.files); });
     $id('mergeBtn').onclick = runMerge;
+    document.querySelectorAll('[data-download-mode]').forEach(function(btn){
+      btn.onclick = function(){ setDownloadMode(btn.dataset.downloadMode); };
+    });
 
     $id('demoOneBtn').onclick = function(){
       generateDemo({ unit_ids: [$id('demoUnitSel').value], messy: $id('demoMessy').checked });
@@ -386,6 +454,6 @@ Screens.s2 = (function(){
   };
 })();
 
-/* 업로드와 취합은 화면만 분리하고 같은 보고서 상태를 공유한다. */
+/* 업로드와 다운로드는 화면만 분리하고 같은 보고서 상태를 공유한다. */
 Screens.s7 = Screens.s2;
 Screens.s8 = { load: Screens.s2.loadRulesOnly };

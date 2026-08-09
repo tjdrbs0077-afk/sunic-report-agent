@@ -670,7 +670,7 @@ Screens.s4 = (function(){
     payload = null; issues = null;
     $id('edSlideNav').innerHTML = '';
     $id('edObjectList').innerHTML = '';
-    $id('edCanvas').innerHTML = '<div class="note" style="margin:20px;">업로드된 보고서가 없습니다. 업로드 · 취합 화면에서 PPT를 올려 주세요.</div>';
+    $id('edCanvas').innerHTML = '<div class="note" style="margin:20px;">업로드된 보고서가 없습니다. 보고서 업로드 화면에서 PPT를 올려 주세요.</div>';
     $id('edPageInfo').textContent = '';
     $id('edTextPanel').innerHTML = '';
     $id('edIssueList').innerHTML = '';

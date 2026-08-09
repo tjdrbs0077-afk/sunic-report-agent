@@ -260,6 +260,30 @@ tr.rowhover:hover td { background:#fbf6f4; }
 .merge-card .steps { margin:28px 0 18px; }
 .merge-card .bigprog { margin-top:24px; }
 .merge-actions { margin-top:16px; }
+.download-mode-switch {
+  display:inline-flex; gap:4px; margin-bottom:20px; padding:4px;
+  border:1px solid var(--baseline); border-radius:14px; background:#eee9e7; box-shadow:var(--shadow-sm);
+}
+.download-mode-switch button {
+  min-width:180px; min-height:42px; padding:9px 18px; border:0; border-radius:10px;
+  background:transparent; color:var(--text-secondary); font:inherit; font-size:13.5px; font-weight:750; cursor:pointer;
+  transition:background .16s, color .16s, box-shadow .16s;
+}
+.download-mode-switch button:hover { color:var(--text-primary); background:rgba(255,255,255,.55); }
+.download-mode-switch button.active { color:#fff; background:var(--grad); box-shadow:0 5px 14px rgba(234,0,44,.22); }
+.download-panel[hidden] { display:none; }
+.download-panel-card { width:100%; }
+.individual-download-card { min-height:330px; }
+.individual-download-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.individual-download-item {
+  display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:14px;
+  padding:14px 15px; border:1px solid var(--grid); border-radius:14px; background:#fdfcfc;
+}
+.individual-download-info { min-width:0; }
+.individual-download-info b { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
+.individual-download-info span { display:block; margin-top:2px; color:var(--text-secondary); font-size:12.5px; }
+.individual-download-item .btn { min-width:112px; }
+.individual-download-empty { padding:32px 18px; border:1px dashed var(--baseline); border-radius:14px; color:var(--text-secondary); text-align:center; }
 
 .rulelist { list-style:none; }
 .rulelist li { display:flex; gap:12px; padding:10px 0; border-bottom:1px solid var(--grid); font-size:14px; align-items:baseline; }
@@ -388,7 +412,7 @@ select {
   font-size:13px;
 }
 
-/* ── ⑤ 근거형 챗봇 ── */
+/* ── ⑤ 챗봇 ── */
 .chat-status-note { margin:0 0 14px; font-size:12.5px; line-height:1.65; }
 .chat-layout { align-items:start; }
 .chat-card { min-width:0; }
@@ -695,6 +719,9 @@ input, textarea, select { min-width: 0; max-width: 100%; }
 }
 @media (max-width: 900px){
   .grid.g4, .grid.g2, .grid.g32 { grid-template-columns: 1fr; }
+  .download-mode-switch { display:flex; width:100%; }
+  .download-mode-switch button { flex:1; min-width:0; }
+  .individual-download-list { grid-template-columns:1fr; }
   .home-wrap { margin:-20px -18px -40px; min-height:calc(100vh - 90px); }
   .home-grid { grid-template-columns: repeat(2, minmax(0, 142px)); }
   .card { padding: 18px 18px; border-radius: 16px; }

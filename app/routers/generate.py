@@ -18,6 +18,7 @@ router = APIRouter(prefix="/api", tags=["generate"])
 class GenerateRequest(BaseModel):
     report_id: str
     layout_overrides: dict[str, Any] | None = None
+    edited_copy: bool = False
 
 
 class MergeRequest(BaseModel):
@@ -37,6 +38,12 @@ def has_edits(overrides: dict[str, Any] | None) -> bool:
     return bool(overrides.get("global") or overrides.get("slides"))
 
 
+def generation_suffix(overrides: dict[str, Any] | None, edited_copy: bool = False) -> str:
+    if edited_copy:
+        return "_수정본"
+    return "_편집본" if has_edits(overrides) else "_자동배열본"
+
+
 @router.post("/generate")
 def generate(req: GenerateRequest):
     payload = store.report_payload(req.report_id)
@@ -46,7 +53,7 @@ def generate(req: GenerateRequest):
     overrides = req.layout_overrides
     if overrides is None:
         overrides = store.load_layouts().get(req.report_id, {})
-    suffix = "_편집본" if has_edits(overrides) else "_자동배열본"
+    suffix = generation_suffix(overrides, req.edited_copy)
     tmp_out = config.GENERATED / f"{slug(unit['name'])}{suffix}.tmp-out.pptx"
     try:
         made = generate_report(config.active_template(), unit, slides, tmp_out, overrides)

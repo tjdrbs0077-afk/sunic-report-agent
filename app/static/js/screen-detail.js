@@ -216,7 +216,7 @@ Screens.s3 = (function(){
     document.getElementById('detOrig').innerHTML = '';
     document.getElementById('detFixed').innerHTML = '';
     document.getElementById('detFixList').innerHTML = '';
-    document.getElementById('detFbList').innerHTML = '<div class="note">업로드된 보고서가 없습니다. 업로드 · 취합 화면에서 PPT를 올려 주세요.</div>';
+    document.getElementById('detFbList').innerHTML = '<div class="note">업로드된 보고서가 없습니다. 보고서 업로드 화면에서 PPT를 올려 주세요.</div>';
     document.getElementById('detFixCount').textContent = '';
     var chip = document.getElementById('detChip');
     chip.className = 'chip wait'; chip.textContent = '보고서 없음';

@@ -12,7 +12,7 @@ from app.routers import chat, demo, generate, layout, news, reports, rules
 
 VERSION = "0.5.0"
 
-app = FastAPI(title="사내 보고서 취합·편집 에이전트", version=VERSION)
+app = FastAPI(title="사내 보고서 편집·다운로드 에이전트", version=VERSION)
 app.mount("/static", StaticFiles(directory=config.STATIC), name="static")
 app.mount("/generated", StaticFiles(directory=config.GENERATED), name="generated")
 

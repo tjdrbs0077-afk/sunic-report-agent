@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>사내 보고서 취합·편집 에이전트</title>
+<title>사내 보고서 편집·다운로드 에이전트</title>
 <link rel="stylesheet" href="/static/css/theme.css">
 </head>
 <body data-palette="#ea002c,#f47725,#1baf7a">
@@ -27,7 +27,7 @@
       <div class="nav-submenu">
         <button data-s="s2" onclick="go('s2',this)"><span class="sub-dot"></span><span class="txt">보고서 업로드</span></button>
         <button data-s="s4" onclick="go('s4',this)"><span class="sub-dot"></span><span class="txt">상세 편집</span></button>
-        <button data-s="s7" onclick="go('s7',this)"><span class="sub-dot"></span><span class="txt">보고서 취합</span></button>
+        <button data-s="s7" onclick="go('s7',this)"><span class="sub-dot"></span><span class="txt">보고서 다운로드</span></button>
       </div>
     </div>
     <div class="nav-group" data-group="understanding">
@@ -289,11 +289,11 @@
     <div class="topbar">
       <div>
         <h1>상세 편집</h1>
-        <p>내용과 레이아웃을 페이지 단위로 조정한 뒤 취합 단계로 넘깁니다</p>
+        <p>내용과 레이아웃을 페이지 단위로 조정한 뒤 다운로드 단계로 넘깁니다</p>
       </div>
       <div class="top-actions">
         <button class="btn ghost" onclick="goTo('s3')">원본 비교 · AI 검토</button>
-        <button class="btn primary flow-action" onclick="goTo('s7')">다음: 취합 →</button>
+        <button class="btn primary flow-action" onclick="goTo('s7')">다음: 다운로드 →</button>
       </div>
     </div>
 
@@ -381,41 +381,56 @@
     </div>
   </section>
 
-  <!-- ═══════════ ④ 취합 ═══════════ -->
+  <!-- ═══════════ ④ 다운로드 ═══════════ -->
   <section id="s7" class="screen">
     <div class="topbar">
       <div>
-        <h1>보고서 취합</h1>
-        <p>상세 편집이 끝난 보고서를 순서대로 배열해 하나의 통합 PPT로 생성합니다</p>
+        <h1>보고서 다운로드</h1>
+        <p>편집된 보고서를 개별 수정본으로 받거나 하나의 통합 PPT로 생성합니다</p>
       </div>
       <button class="btn ghost" onclick="goTo('s4')">← 상세 편집으로</button>
     </div>
 
-    <div class="card workspace-card merge-card">
-      <div class="card-head">
-        <div><h3>취합 진행 상태</h3><p>업로드부터 최종 통합본 생성까지 현재 단계를 확인합니다.</p></div>
-      </div>
-      <div class="steps" id="pipeSteps">
-        <div class="step"><span class="dot"></span><span class="sl">업로드 완료</span><span class="ss">PPTX 수신</span></div>
-        <div class="step"><span class="dot"></span><span class="sl">양식 검사 · 편집</span><span class="ss">수정값 반영</span></div>
-        <div class="step"><span class="dot"></span><span class="sl">표준 양식 배열</span><span class="ss">템플릿 실측 좌표</span></div>
-        <div class="step"><span class="dot"></span><span class="sl">통합 PPT 생성</span><span class="ss">업로드 순서 병합</span></div>
-      </div>
-      <div class="bigprog"><div class="f" id="mergeFill"></div></div>
-      <div class="prog-label" id="mergeLabel">대기 중 — 보고서를 업로드해 주세요</div>
-      <div class="action-row merge-actions">
-        <button class="btn primary disabled" id="mergeBtn">통합 PPT 생성 실행</button>
-        <button class="btn ghost disabled" id="dlBtn">통합본 다운로드 (.pptx)</button>
-      </div>
-      <div class="note">업로드된 보고서를 업로드 순서대로 표준 양식에 배열합니다. 상세 편집에서 저장한 내용과 레이아웃이 최종본에 함께 반영됩니다.</div>
+    <div class="download-mode-switch" role="tablist" aria-label="다운로드 방식 선택">
+      <button type="button" class="active" role="tab" aria-selected="true" data-download-mode="merged">통합본 다운로드</button>
+      <button type="button" role="tab" aria-selected="false" data-download-mode="individual">개별 수정본 다운로드</button>
     </div>
+
+    <section class="download-panel active" id="downloadPanelMerged" data-download-panel="merged" role="tabpanel">
+      <div class="card workspace-card merge-card download-panel-card">
+        <div class="card-head">
+          <div><h3>통합본 다운로드</h3></div>
+        </div>
+        <div class="steps" id="pipeSteps">
+          <div class="step"><span class="dot"></span><span class="sl">업로드 완료</span><span class="ss">PPTX 수신</span></div>
+          <div class="step"><span class="dot"></span><span class="sl">양식 검사 · 편집</span><span class="ss">수정값 반영</span></div>
+          <div class="step"><span class="dot"></span><span class="sl">표준 양식 배열</span><span class="ss">템플릿 실측 좌표</span></div>
+          <div class="step"><span class="dot"></span><span class="sl">통합 PPT 생성</span><span class="ss">업로드 순서 병합</span></div>
+        </div>
+        <div class="bigprog"><div class="f" id="mergeFill"></div></div>
+        <div class="prog-label" id="mergeLabel">대기 중 — 보고서를 업로드해 주세요</div>
+        <div class="action-row merge-actions">
+          <button class="btn primary disabled" id="mergeBtn">통합 PPT 생성</button>
+          <button class="btn ghost disabled" id="dlBtn">통합본 다운로드 (.pptx)</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="download-panel" id="downloadPanelIndividual" data-download-panel="individual" role="tabpanel" hidden>
+      <div class="card individual-download-card download-panel-card">
+        <div class="card-head">
+          <div><h3>개별 수정본 다운로드</h3><p>필요한 보고서만 선택해 각각의 수정본 PPTX로 받습니다.</p></div>
+        </div>
+        <div id="individualDownloadList" class="individual-download-list"></div>
+      </div>
+    </section>
   </section>
 
-  <!-- ═══════════ ⑤ 근거형 챗봇 ═══════════ -->
+  <!-- ═══════════ ⑤ 챗봇 ═══════════ -->
   <section id="s5" class="screen">
     <div class="topbar">
       <div>
-        <h1>근거형 챗봇</h1>
+        <h1>챗봇</h1>
         <p>보고서 근거와 외부 뉴스를 한 번에 — 모든 답변에 출처와 전송 내역이 붙습니다</p>
       </div>
       <span class="demo-badge">DEMO · JSON 저장</span>
