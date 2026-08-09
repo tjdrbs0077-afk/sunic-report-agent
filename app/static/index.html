@@ -11,19 +11,34 @@
 <aside class="sidebar">
   <div class="sbar-top">
     <div class="logo" onclick="goTo('home')">
-      <b>보고서 취합 에이전트</b>
-      <span>SUNI 5기 4팀 · 프로토타입 v0.1</span>
+      <span class="sidebar-brand-mark"><img src="/static/assets/DC_logo.png?v=3" alt=""></span>
+      <b>DOCU-C</b>
     </div>
     <button class="collapse-btn" id="cbtn" onclick="toggleSide()" title="사이드바 접기/펴기">◀</button>
   </div>
   <nav class="nav">
-    <button class="active" data-s="home" onclick="go('home',this)"><span class="num">⌂</span><span class="txt">홈</span></button>
-    <button data-s="s1" onclick="go('s1',this)"><span class="num">1</span><span class="txt">대시보드</span></button>
-    <button data-s="s2" onclick="go('s2',this)"><span class="num">2</span><span class="txt">업로드</span></button>
-    <button data-s="s4" onclick="go('s4',this)"><span class="num">3</span><span class="txt">상세 편집</span></button>
-    <button data-s="s7" onclick="go('s7',this)"><span class="num">4</span><span class="txt">취합</span></button>
-    <button data-s="s5" onclick="go('s5',this)"><span class="num">5</span><span class="txt">챗봇</span></button>
-    <button data-s="s6" onclick="go('s6',this)"><span class="num">6</span><span class="txt">동향 인사이트</span></button>
+    <button class="active" data-s="home" onclick="go('home',this)"><span class="num nav-icon"><svg viewBox="0 0 24 24"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10M9 20v-6h6v6"/></svg></span><span class="txt">홈</span></button>
+    <button data-s="s1" onclick="go('s1',this)"><span class="num nav-icon"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg></span><span class="txt">대시보드</span></button>
+    <button data-s="s8" onclick="go('s8',this)"><span class="num nav-icon"><svg viewBox="0 0 24 24"><path d="M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span><span class="txt">보고서 양식 관리</span></button>
+    <div class="nav-group" data-group="editing">
+      <button class="nav-parent" type="button" aria-expanded="false" onclick="toggleNavGroup('editing')">
+        <span class="num nav-icon"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span><span class="txt">보고서 편집</span><span class="nav-chevron">⌄</span>
+      </button>
+      <div class="nav-submenu">
+        <button data-s="s2" onclick="go('s2',this)"><span class="sub-dot"></span><span class="txt">보고서 업로드</span></button>
+        <button data-s="s4" onclick="go('s4',this)"><span class="sub-dot"></span><span class="txt">상세 편집</span></button>
+        <button data-s="s7" onclick="go('s7',this)"><span class="sub-dot"></span><span class="txt">보고서 취합</span></button>
+      </div>
+    </div>
+    <div class="nav-group" data-group="understanding">
+      <button class="nav-parent" type="button" aria-expanded="false" onclick="toggleNavGroup('understanding')">
+        <span class="num nav-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg></span><span class="txt">보고서 이해하기</span><span class="nav-chevron">⌄</span>
+      </button>
+      <div class="nav-submenu">
+        <button data-s="s5" onclick="go('s5',this)"><span class="sub-dot"></span><span class="txt">챗봇</span></button>
+        <button data-s="s6" onclick="go('s6',this)"><span class="sub-dot"></span><span class="txt">동향 인사이트</span></button>
+      </div>
+    </div>
   </nav>
   <div class="foot">데모 단계입니다.<br>저장은 JSON 파일로 관리됩니다.</div>
 </aside>
@@ -34,33 +49,25 @@
   <section id="home" class="screen active">
     <div class="home-wrap">
       <div class="home-brand" aria-label="Docu-C">
-        <strong>D&amp;C</strong>
+        <img src="/static/assets/DC_logo.png?v=3" alt="Docu-C" class="home-logo">
         <span>AI-Powered Report Checking Agent</span>
       </div>
-      <div class="home-grid">
+      <div class="home-grid home-grid-four">
         <button class="home-card" onclick="goTo('s1')">
           <span class="hicon"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg></span>
           <b>대시보드</b>
         </button>
+        <button class="home-card" onclick="goTo('s8')">
+          <span class="hicon"><svg viewBox="0 0 24 24"><path d="M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span>
+          <b>보고서 양식 관리</b>
+        </button>
         <button class="home-card" onclick="goTo('s2')">
-          <span class="hicon"><svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span>
-          <b>업로드</b>
-        </button>
-        <button class="home-card" onclick="goTo('s4')">
           <span class="hicon"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
-          <b>상세 편집</b>
-        </button>
-        <button class="home-card" onclick="goTo('s7')">
-          <span class="hicon"><svg viewBox="0 0 24 24"><path d="m12 3 8 4-8 4-8-4 8-4Z"/><path d="m4 12 8 4 8-4M4 17l8 4 8-4"/></svg></span>
-          <b>취합</b>
+          <b>보고서 편집</b>
         </button>
         <button class="home-card" onclick="goTo('s5')">
-          <span class="hicon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg></span>
-          <b>챗봇</b>
-        </button>
-        <button class="home-card" onclick="goTo('s6')">
-          <span class="hicon"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M8.5 14.5a7 7 0 1 1 7 0c-.9.7-1.5 1.6-1.5 2.5h-4c0-.9-.6-1.8-1.5-2.5Z"/></svg></span>
-          <b>동향 인사이트</b>
+          <span class="hicon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg></span>
+          <b>보고서 이해하기</b>
         </button>
       </div>
     </div>
@@ -76,7 +83,7 @@
       <button class="btn primary" onclick="goTo('s2')">새 보고서 업로드 →</button>
     </div>
 
-    <div class="grid g4" style="margin-bottom:14px;">
+    <div class="grid g4 section-gap">
       <div class="card tile">
         <div class="label">등록 보고서</div>
         <div class="value" id="stReports">—</div>
@@ -99,7 +106,7 @@
       </div>
     </div>
 
-    <div class="grid g32" style="margin-bottom:14px;">
+    <div class="grid g32 section-gap">
       <div class="card">
         <h3>보고서별 제출 · 처리 현황</h3>
         <div class="scroll-x">
@@ -114,7 +121,7 @@
         </div>
       </div>
       <div>
-        <div class="card" style="margin-bottom:14px;">
+        <div class="card section-gap-small">
           <h3>오류 유형별 건수 <span class="sub" id="dashErrTotal"></span></h3>
           <div id="errChart"></div>
           <div class="axis-note">막대에 마우스를 올리면 상세가 보입니다</div>
@@ -136,6 +143,33 @@
     </div>
   </section>
 
+  <!-- ═══════════ 보고서 양식 관리 ═══════════ -->
+  <section id="s8" class="screen">
+    <div class="topbar">
+      <div>
+        <h1>보고서 양식 관리</h1>
+        <p>표준 양식을 등록하고 글꼴·크기·표·프레임 기준을 직접 관리합니다</p>
+      </div>
+      <button class="btn primary" onclick="goTo('s2')">보고서 편집 시작 →</button>
+    </div>
+    <div class="card template-management-card workspace-card">
+      <div class="card-head">
+        <div><h3>적용 중인 양식 기준</h3><p>현재 모든 보고서 검사와 자동 교정에 공통으로 사용됩니다.</p></div>
+      </div>
+      <div class="section-meta" id="ruleSource">standard_rules.yaml</div>
+      <ul class="rulelist" id="ruleList"></ul>
+      <div id="ruleEditor" style="display:none;"></div>
+      <div class="template-actions">
+        <button class="btn ghost" id="ruleEditBtn">기준 직접 수정</button>
+        <button class="btn ghost" id="ruleTplBtn">양식 PPTX로 교체</button>
+        <button class="btn ghost" id="ruleResetBtn">기본값 복원</button>
+        <input type="file" id="ruleTplInput" accept=".pptx" style="display:none;">
+      </div>
+      <div class="prog-label" id="ruleStatus"></div>
+      <div class="note">변경한 기준은 다음 양식 검사와 PPT 생성부터 적용됩니다.</div>
+    </div>
+  </section>
+
   <!-- ═══════════ ② 업로드 ═══════════ -->
   <section id="s2" class="screen">
     <div class="topbar">
@@ -148,9 +182,11 @@
       </div>
     </div>
 
-    <div class="grid g2" style="margin-bottom:14px;">
-      <div class="card">
-        <h3>보고서 업로드</h3>
+    <div class="grid upload-grid section-gap">
+      <div class="card workspace-card upload-card">
+        <div class="card-head">
+          <div><h3>보고서 업로드</h3><p>편집할 PPTX를 한 번에 여러 개 등록할 수 있습니다.</p></div>
+        </div>
         <div class="dropzone" id="dz">
           <span class="ic">📄</span>
           <b>PPT 파일을 끌어다 놓거나 클릭하세요</b><br>
@@ -158,34 +194,23 @@
         </div>
         <input type="file" id="fileInput" accept=".pptx" multiple style="display:none;">
         <div class="filelist" id="fileList"></div>
-
-        <h3 class="section-title">시연용 샘플 보고서</h3>
-        <div class="selrow" style="margin-bottom:8px;">
+      </div>
+      <div class="card sample-card">
+        <div class="card-head">
+          <div><h3>시연용 샘플 보고서</h3><p>업로드할 파일이 없을 때 테스트 데이터를 생성합니다.</p></div>
+        </div>
+        <div class="selrow embedded-controls">
           <select id="demoUnitSel"></select>
           <label style="font-size:13px; display:flex; align-items:center; gap:7px;">
             <input type="checkbox" id="demoMessy" style="accent-color:var(--accent); width:15px; height:15px;">양식 위반 섞기
           </label>
         </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <div class="action-row">
           <button class="btn ghost" id="demoOneBtn">선택 사업단 생성</button>
           <button class="btn ghost" id="demoAllBtn">전체 사업단 생성</button>
         </div>
-        <div class="prog-label" id="demoStatus" style="margin-top:10px;"></div>
+        <div class="prog-label" id="demoStatus"></div>
         <div class="note">샘플은 가상 데이터입니다. ‘양식 위반 섞기’로 자동 수정 기능을 테스트할 수 있습니다.</div>
-      </div>
-      <div class="card">
-        <h3>양식 기준 설정</h3>
-        <div class="section-meta" id="ruleSource">standard_rules.yaml</div>
-        <ul class="rulelist" id="ruleList"></ul>
-        <div id="ruleEditor" style="display:none;"></div>
-        <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
-          <button class="btn ghost" id="ruleEditBtn">기준 직접 수정</button>
-          <button class="btn ghost" id="ruleTplBtn">양식 PPTX로 교체</button>
-          <button class="btn ghost" id="ruleResetBtn">기본값 복원</button>
-          <input type="file" id="ruleTplInput" accept=".pptx" style="display:none;">
-        </div>
-        <div class="prog-label" id="ruleStatus" style="margin-top:10px;"></div>
-        <div class="note">변경한 기준은 다음 양식 검사와 PPT 생성부터 적용됩니다.</div>
       </div>
     </div>
   </section>
@@ -200,34 +225,62 @@
       <button class="btn ghost" onclick="goTo('s4')">← 상세 편집으로 돌아가기</button>
     </div>
 
-    <div class="selrow">
-      <label style="font-size:13px; color:var(--text-secondary);">보고서 선택</label>
-      <select id="detReportSel"></select>
-      <span id="detSlideNav" style="display:flex; gap:6px; flex-wrap:wrap;"></span>
-      <span class="chip wait" id="detChip" style="margin-left:auto;">보고서 없음</span>
+    <div class="detail-toolbar">
+      <div class="detail-report-field">
+        <label for="detReportSel">보고서</label>
+        <select id="detReportSel"></select>
+      </div>
+      <div class="detail-pages">
+        <span class="detail-toolbar-label">페이지</span>
+        <span id="detSlideNav"></span>
+      </div>
+      <span class="chip wait" id="detChip">보고서 없음</span>
     </div>
 
-    <div class="grid g2" style="margin-bottom:14px;">
-      <div class="card">
-        <div class="pane-label"><span class="tag orig">원본</span> <span id="detOrigLabel">추출된 슬라이드</span></div>
-        <div class="slide-mock" id="detOrig"></div>
+    <div class="card detail-compare-card">
+      <div class="detail-section-head">
+        <div>
+          <h3>슬라이드 비교</h3>
+          <p>원본과 표준 양식 적용 결과를 같은 기준으로 확인합니다.</p>
+        </div>
+        <div class="detail-view-switch" role="group" aria-label="비교 화면 보기 방식">
+          <button class="active" type="button" data-view="both">나란히</button>
+          <button type="button" data-view="original">원본만</button>
+          <button type="button" data-view="fixed">교정본만</button>
+        </div>
       </div>
-      <div class="card">
-        <div class="pane-label"><span class="tag fixd">교정본</span> 표준 양식으로 새로 이관됨</div>
-        <div class="slide-mock" id="detFixed" style="border-color:#bfe0bf;"></div>
+      <div class="detail-compare-grid" id="detCompareGrid" data-view="both">
+        <article class="detail-pane detail-pane-original">
+          <div class="pane-label"><span class="tag orig">원본</span> <span id="detOrigLabel">추출된 슬라이드</span></div>
+          <div class="slide-mock" id="detOrig"></div>
+        </article>
+        <article class="detail-pane detail-pane-fixed">
+          <div class="pane-label"><span class="tag fixd">교정본</span> 표준 양식 적용 결과</div>
+          <div class="slide-mock" id="detFixed"></div>
+        </article>
       </div>
     </div>
 
-    <div class="grid g2">
-      <div class="card">
-        <h3>수정 내역 <span class="sub" id="detFixCount"></span></h3>
+    <div class="card detail-review-card">
+      <div class="detail-review-tabs" role="tablist" aria-label="검토 내역">
+        <button class="active" type="button" role="tab" aria-selected="true" data-panel="changes">
+          수정 내역 <span id="detFixCount"></span>
+        </button>
+        <button type="button" role="tab" aria-selected="false" data-panel="feedback">AI 피드백</button>
+      </div>
+      <section class="detail-review-panel active" id="detPanelChanges" role="tabpanel">
+        <div class="detail-panel-intro">
+          <b>자동 교정 요약</b><span>발견된 양식 위반과 적용된 교정을 유형별로 보여줍니다.</span>
+        </div>
         <ul class="fixlist" id="detFixList"></ul>
-      </div>
-      <div class="card">
-        <h3>AI 내용 피드백 <span class="sub">체크한 항목만 최종본에 반영</span></h3>
-        <div id="detFbList"></div>
-        <div class="note">⚠️ PPT 댓글 기능은 도구 제약으로 사용할 수 없어, 선택된 피드백은 해당 슬라이드의 <b>발표자 노트</b>에 기록됩니다.</div>
-      </div>
+      </section>
+      <section class="detail-review-panel" id="detPanelFeedback" role="tabpanel" hidden>
+        <div class="detail-panel-intro">
+          <b>AI 내용 검토</b><span>필요한 제안만 선택해 최종본 발표자 노트에 반영합니다.</span>
+        </div>
+        <div id="detFbList"><div class="note">AI 피드백 탭을 열면 내용을 검토합니다.</div></div>
+        <div class="note detail-feedback-note">선택된 피드백은 해당 슬라이드의 <b>발표자 노트</b>에 기록됩니다.</div>
+      </section>
     </div>
   </section>
 
@@ -244,27 +297,32 @@
       </div>
     </div>
 
-    <div class="selrow">
+    <div class="selrow control-bar">
       <label style="font-size:13px; color:var(--text-secondary);">보고서 선택</label>
       <select id="edReportSel"></select>
       <span class="chip wait" id="edValidBadge" style="margin-left:auto;">보고서 없음</span>
     </div>
 
     <div class="grid ed-grid">
-      <div class="card" style="padding:16px 14px;">
+      <div class="card editor-side-card editor-nav-card">
         <h3>페이지</h3>
+        <div class="editor-page-stepper" aria-label="슬라이드 페이지 이동">
+          <button type="button" id="edPrevSlide" class="editor-page-arrow" aria-label="이전 슬라이드" title="이전 슬라이드">←</button>
+          <span id="edPageCounter" aria-live="polite">0 / 0</span>
+          <button type="button" id="edNextSlide" class="editor-page-arrow" aria-label="다음 슬라이드" title="다음 슬라이드">→</button>
+        </div>
         <div id="edSlideNav" style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:16px;"></div>
         <h3>편집 개체</h3>
         <div id="edObjectList" style="display:flex; flex-direction:column; gap:6px;"></div>
       </div>
-      <div class="card">
+      <div class="card editor-canvas-card">
         <h3>편집 캔버스 <span class="sub" id="edPageInfo"></span></h3>
         <div class="ed-canvas" id="edCanvas"></div>
         <div class="prog-label" id="edStatus" style="margin-top:10px;"></div>
 
         <h3 style="margin-top:20px;">이 페이지 양식 오류 <span class="sub" id="edIssueCount"></span></h3>
         <ul class="fixlist" id="edIssueList"></ul>
-        <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+        <div class="action-row compact-actions">
           <button class="btn ghost" id="edFixPageBtn">이 페이지 자동 수정</button>
           <button class="btn ghost" id="edFixAllBtn">전체 자동 수정</button>
           <button class="btn ghost" id="edRestorePageBtn">이 페이지 원문 복원</button>
@@ -275,13 +333,13 @@
           <div class="pane-label"><span class="tag orig">수정 전</span> → <span class="tag fixd">수정 후</span>
             <span class="sub" id="edPreviewCount"></span></div>
           <div id="edPreviewList" class="scroll-x"></div>
-          <div style="display:flex; gap:8px; margin-top:12px;">
+          <div class="action-row compact-actions">
             <button class="btn primary" id="edApplyFixBtn">이대로 적용</button>
             <button class="btn ghost" id="edCancelFixBtn">취소</button>
           </div>
         </div>
       </div>
-      <div class="card" style="padding:18px 16px;">
+      <div class="card editor-side-card editor-property-card">
         <h3>개체 속성 <span class="sub" id="edSelLabel"></span></h3>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
           <label style="font-size:11px; color:var(--text-muted);">X (inch)<input type="number" step="0.001" class="ed-field" id="edX"></label>
@@ -309,7 +367,7 @@
             </select>
           </label>
         </div>
-        <div style="display:flex; flex-direction:column; gap:8px; margin-top:14px;">
+        <div class="property-actions">
           <button class="btn primary" id="edSaveBtn">편집 저장</button>
           <button class="btn ghost" id="edResetPageBtn">현재 페이지 초기화</button>
           <button class="btn ghost" id="edResetAllBtn">전체 초기화</button>
@@ -333,8 +391,10 @@
       <button class="btn ghost" onclick="goTo('s4')">← 상세 편집으로</button>
     </div>
 
-    <div class="card">
-      <h3>취합 진행 상태</h3>
+    <div class="card workspace-card merge-card">
+      <div class="card-head">
+        <div><h3>취합 진행 상태</h3><p>업로드부터 최종 통합본 생성까지 현재 단계를 확인합니다.</p></div>
+      </div>
       <div class="steps" id="pipeSteps">
         <div class="step"><span class="dot"></span><span class="sl">업로드 완료</span><span class="ss">PPTX 수신</span></div>
         <div class="step"><span class="dot"></span><span class="sl">양식 검사 · 편집</span><span class="ss">수정값 반영</span></div>
@@ -343,7 +403,7 @@
       </div>
       <div class="bigprog"><div class="f" id="mergeFill"></div></div>
       <div class="prog-label" id="mergeLabel">대기 중 — 보고서를 업로드해 주세요</div>
-      <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+      <div class="action-row merge-actions">
         <button class="btn primary disabled" id="mergeBtn">통합 PPT 생성 실행</button>
         <button class="btn ghost disabled" id="dlBtn">통합본 다운로드 (.pptx)</button>
       </div>
@@ -361,7 +421,7 @@
       <span class="demo-badge">DEMO · JSON 저장</span>
     </div>
 
-    <div class="selrow">
+    <div class="selrow control-bar">
       <label id="chatReportLabel" style="font-size:13px; color:var(--text-secondary);">보고서</label>
       <select id="chatReportSel"></select>
     </div>
@@ -410,20 +470,21 @@
       <span class="demo-badge">실제 뉴스 검색 · 팀 조사 지식맵</span>
     </div>
 
-    <div class="card" style="margin-bottom:14px;">
-      <h3>보고서 키워드·뉴스 검색 <span class="sub" id="insKwSub">보고서에서 자동 추출 · 클릭하면 해당 키워드로 검색</span></h3>
-      <div class="selrow" style="margin-bottom:12px;">
+    <div class="card search-card section-gap">
+      <div class="card-head">
+        <div><h3>보고서 키워드·뉴스 검색</h3><p id="insKwSub">보고서에서 자동 추출 · 클릭하면 해당 키워드로 검색</p></div>
+      </div>
+      <div class="selrow embedded-controls search-controls">
         <select id="insReportSel"></select>
-        <input id="insQuery" placeholder="직접 검색: 예) 전고체 배터리"
-          style="flex:1; min-width:180px; font:inherit; font-size:13px; padding:9px 14px; border:1px solid var(--baseline); border-radius:11px; background:#fff; color:var(--text-primary); box-shadow:var(--shadow-sm);">
+        <input id="insQuery" class="search-input" placeholder="직접 검색: 예) 전고체 배터리">
         <button class="btn primary" id="insSearchBtn">검색</button>
         <button class="btn ghost" id="insRefreshBtn">지금 새로고침</button>
       </div>
       <div id="insKeywords"></div>
-      <div class="prog-label" id="insFetchInfo" style="margin-top:10px;"></div>
+      <div class="prog-label" id="insFetchInfo"></div>
     </div>
 
-    <div class="grid g2">
+    <div class="grid g2 insight-layout">
       <div class="card">
         <h3>관련 공개 기사 <span class="sub" id="insArtSub">관련도순 · 조사 과정에서 수집</span></h3>
         <div id="artList"></div>

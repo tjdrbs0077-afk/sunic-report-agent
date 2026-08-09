@@ -108,6 +108,19 @@ Screens.s4 = (function(){
   }
 
   /* ── 좌측: 페이지 · 개체 목록 ── */
+  function moveSlide(delta){
+    if(!payload || !payload.slides || !payload.slides.length) return;
+    var next = Math.max(1, Math.min(payload.slides.length, curSlide + delta));
+    if(next === curSlide) return;
+    curSlide = next;
+    renderAll();
+  }
+  function renderPageStepper(){
+    var total = payload && payload.slides ? payload.slides.length : 0;
+    $id('edPageCounter').textContent = total ? curSlide + ' / ' + total : '0 / 0';
+    $id('edPrevSlide').disabled = !total || curSlide <= 1;
+    $id('edNextSlide').disabled = !total || curSlide >= total;
+  }
   function renderNav(){
     var nav = $id('edSlideNav');
     nav.innerHTML = payload.slides.map(function(s){
@@ -119,6 +132,7 @@ Screens.s4 = (function(){
     nav.querySelectorAll('button').forEach(function(b){
       b.onclick = function(){ curSlide = +b.dataset.n; renderAll(); };
     });
+    renderPageStepper();
   }
   function renderObjectList(){
     var keys = activeKeys();
@@ -595,6 +609,8 @@ Screens.s4 = (function(){
   }
 
   function bindActions(){
+    $id('edPrevSlide').onclick = function(){ moveSlide(-1); };
+    $id('edNextSlide').onclick = function(){ moveSlide(1); };
     $id('edSaveBtn').onclick = function(){
       API.post('/api/layouts', { report_id: payload.unit.id, layout_overrides: overrides }).then(function(){
         $id('edStatus').textContent = '편집값을 저장했습니다. 표준 양식 생성과 병합에 반영됩니다.';
@@ -658,6 +674,9 @@ Screens.s4 = (function(){
     $id('edPageInfo').textContent = '';
     $id('edTextPanel').innerHTML = '';
     $id('edIssueList').innerHTML = '';
+    $id('edPageCounter').textContent = '0 / 0';
+    $id('edPrevSlide').disabled = true;
+    $id('edNextSlide').disabled = true;
     var badge = $id('edValidBadge');
     badge.className = 'chip wait'; badge.textContent = '보고서 없음';
   }

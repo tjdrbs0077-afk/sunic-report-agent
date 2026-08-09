@@ -16,13 +16,30 @@ function activeScreenId(){
 function go(id, btn){
   document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
   document.querySelectorAll('.nav button').forEach(function(b){ b.classList.remove('active'); });
-  if(btn) btn.classList.add('active');
+  document.querySelectorAll('.nav-group').forEach(function(group){ group.classList.remove('child-active'); });
+  if(btn){
+    btn.classList.add('active');
+    var group = btn.closest('.nav-group');
+    if(group){
+      group.classList.add('child-active', 'open');
+      var parent = group.querySelector('.nav-parent');
+      if(parent) parent.setAttribute('aria-expanded', 'true');
+    }
+  }
   if(Screens[id] && typeof Screens[id].load === 'function') Screens[id].load();
 }
 function goTo(id){
   var btn = document.querySelector('.nav button[data-s="' + id + '"]');
   go(id, btn);
+}
+function toggleNavGroup(name){
+  var group = document.querySelector('.nav-group[data-group="' + name + '"]');
+  if(!group) return;
+  group.classList.toggle('open');
+  var parent = group.querySelector('.nav-parent');
+  if(parent) parent.setAttribute('aria-expanded', group.classList.contains('open') ? 'true' : 'false');
 }
 function toggleSide(){
   var sb = document.querySelector('.sidebar');

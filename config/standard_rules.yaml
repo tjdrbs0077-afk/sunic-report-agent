@@ -6,54 +6,48 @@ fonts:
   korean: 나눔스퀘어
   heading_korean: 나눔스퀘어 ExtraBold
 title:
-  font_size: 24
+  font_size: 24.0
   bold: true
   x: 0.298612
   y: 0.186044
-# spc_before: 단락 앞 간격(pt) — 보고양식 Sample 실측 (레벨1·2 = 10pt, 3~5 = 5pt)
 body_levels:
 - level: 1
-  size: 14
+  size: 14.0
   bold: true
   marL: 265113
   indent: -265113
   bullet: auto:1.
-  spc_before: 10
 - level: 2
-  size: 13
-  bold: false
+  size: 13.0
+  bold: true
   marL: 538163
   indent: -266700
   bullet: auto:1)
-  spc_before: 10
 - level: 3
-  size: 12
+  size: 12.0
   bold: false
   marL: 714375
   indent: -179388
   bullet: wingdings:❑
-  spc_before: 5
 - level: 4
-  size: 11
+  size: 11.0
   bold: false
   marL: 892175
   indent: -177800
-  bullet: arial:–
-  spc_before: 5
+  bullet: char:–
 - level: 5
-  size: 10
+  size: 10.0
   bold: false
   marL: 1081088
   indent: -188913
-  bullet: arial:•
-  spc_before: 5
+  bullet: char:•
 table:
   x_in: 2.89757
   width_in: 7.519097
   caption_offset_in: -0.367
   header_fill: '#DCE6F2'
   header_font_size: 10.5
-  body_font_size: 10
+  body_font_size: 10.0
   first_col_fill: '#E8E8E8'
   gridline:
     width_pt: 0.75
@@ -61,9 +55,9 @@ table:
 frame:
   header_fill: '#B7D3EE'
   border_color: '#7F7F7F'
-  header_font_size: 14
+  header_font_size: 14.0
 footnote:
-  font_size: 8
+  font_size: 8.0
 continuation:
   rule: '동일 대주제가 다음 장으로 이어지면 Lv1 제목 색을 #FFFFFF 로 바꿔 숨긴다'
 overflow:
@@ -72,3 +66,6 @@ overflow:
 cleanup:
   remove_empty_textbox: true
   collapse_spaces: true
+source:
+  file: 보고양식_Sample_4팀.pptx
+  extracted: true
