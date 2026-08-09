@@ -84,6 +84,17 @@ body {
   display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; flex:none;
 }
 .nav button.active .num { background: rgba(255,255,255,.22); }
+.nav-icon { font-size:15px !important; }
+.nav-group { display:flex; flex-direction:column; gap:2px; }
+.nav-parent { width:100%; }
+.nav-chevron { margin-left:auto; font-size:16px; transition:transform .18s; }
+.nav-group.open .nav-chevron { transform:rotate(180deg); }
+.nav-submenu { display:none; flex-direction:column; gap:2px; padding:1px 0 5px 35px; }
+.nav-group.open .nav-submenu { display:flex; }
+.nav-submenu button { padding:8px 11px; font-size:12.5px; color:#b9959d; }
+.nav-submenu button.active { background:rgba(234,0,44,.22); box-shadow:none; color:#fff; }
+.sub-dot { width:5px; height:5px; border-radius:50%; background:currentColor; flex:none; }
+.nav-group.child-active > .nav-parent { color:#fff; font-weight:700; }
 .sidebar .foot { margin-top:auto; padding: 18px 22px; font-size: 11px; color:#8d6a73; border-top:1px solid rgba(255,255,255,.07); white-space:nowrap; }
 .sidebar .foot { display:none; }
 /* 접힌 상태 */
@@ -93,6 +104,7 @@ body {
 .sidebar.collapsed .nav { padding: 6px 10px; }
 .sidebar.collapsed .nav button { justify-content: center; padding: 11px 0; gap: 0; }
 .sidebar.collapsed .nav .txt { display: none; }
+.sidebar.collapsed .nav-chevron, .sidebar.collapsed .nav-submenu { display:none; }
 .sidebar.collapsed .foot { display: none; }
 
 /* ── 메인 ─────────────────────────── */
@@ -138,7 +150,9 @@ body {
   background:#f5f1ef; color:var(--text-secondary); font-size:13px; font-weight:650;
 }
 #s2 .grid > .card:first-child { border-top:3px solid var(--accent); }
-#s2 .grid > .card:last-child { border-top:3px solid var(--baseline); background:#fdfcfc; }
+.template-management-card { max-width:980px; border-top:3px solid var(--accent); }
+.template-actions { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+.template-actions + .prog-label { margin-top:10px; }
 
 /* 스탯 타일 */
 .tile .label { font-size: 13.5px; font-weight:650; color: var(--text-secondary); letter-spacing:.01em; }
@@ -547,6 +561,7 @@ select {
 }
 .home-brand span { margin-top:18px; color:#625654; font-size:18px; font-weight:450; letter-spacing:-.02em; }
 .home-grid { display:grid; grid-template-columns: repeat(3, 142px); gap: 26px 24px; }
+.home-grid-four { grid-template-columns:repeat(2, 164px); }
 .home-card {
   appearance:none; border:0; font:inherit; color:#fff;
   background:#291105; border-radius: 17px;
@@ -653,6 +668,10 @@ input, textarea, select { min-width: 0; max-width: 100%; }
   .nav button, .sidebar.collapsed .nav button {
     flex: none; padding: 8px 13px; gap: 8px; justify-content: flex-start;
   }
+  .nav-group, .sidebar.collapsed .nav-group { flex:none; flex-direction:row; align-items:center; }
+  .nav-group.open .nav-submenu { display:flex; flex-direction:row; padding:0; }
+  .nav-submenu button, .sidebar.collapsed .nav-submenu button { padding:8px 12px; gap:7px; }
+  .sidebar.collapsed .nav-chevron { display:inline; }
   .sidebar.collapsed .nav .txt { display: inline; }
   .sidebar .foot { display: none; }
   .main { padding: 20px 16px 40px; }

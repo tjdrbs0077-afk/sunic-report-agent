@@ -17,13 +17,28 @@
     <button class="collapse-btn" id="cbtn" onclick="toggleSide()" title="사이드바 접기/펴기">◀</button>
   </div>
   <nav class="nav">
-    <button class="active" data-s="home" onclick="go('home',this)"><span class="num">⌂</span><span class="txt">홈</span></button>
-    <button data-s="s1" onclick="go('s1',this)"><span class="num">1</span><span class="txt">대시보드</span></button>
-    <button data-s="s2" onclick="go('s2',this)"><span class="num">2</span><span class="txt">업로드</span></button>
-    <button data-s="s4" onclick="go('s4',this)"><span class="num">3</span><span class="txt">상세 편집</span></button>
-    <button data-s="s7" onclick="go('s7',this)"><span class="num">4</span><span class="txt">취합</span></button>
-    <button data-s="s5" onclick="go('s5',this)"><span class="num">5</span><span class="txt">챗봇</span></button>
-    <button data-s="s6" onclick="go('s6',this)"><span class="num">6</span><span class="txt">동향 인사이트</span></button>
+    <button class="active" data-s="home" onclick="go('home',this)"><span class="num nav-icon">⌂</span><span class="txt">홈</span></button>
+    <button data-s="s1" onclick="go('s1',this)"><span class="num nav-icon">▥</span><span class="txt">대시보드</span></button>
+    <button data-s="s8" onclick="go('s8',this)"><span class="num nav-icon">▤</span><span class="txt">보고서 양식 관리</span></button>
+    <div class="nav-group" data-group="editing">
+      <button class="nav-parent" type="button" aria-expanded="false" onclick="toggleNavGroup('editing')">
+        <span class="num nav-icon">✎</span><span class="txt">보고서 편집</span><span class="nav-chevron">⌄</span>
+      </button>
+      <div class="nav-submenu">
+        <button data-s="s2" onclick="go('s2',this)"><span class="sub-dot"></span><span class="txt">보고서 업로드</span></button>
+        <button data-s="s4" onclick="go('s4',this)"><span class="sub-dot"></span><span class="txt">상세 편집</span></button>
+        <button data-s="s7" onclick="go('s7',this)"><span class="sub-dot"></span><span class="txt">보고서 취합</span></button>
+      </div>
+    </div>
+    <div class="nav-group" data-group="understanding">
+      <button class="nav-parent" type="button" aria-expanded="false" onclick="toggleNavGroup('understanding')">
+        <span class="num nav-icon">◌</span><span class="txt">보고서 이해하기</span><span class="nav-chevron">⌄</span>
+      </button>
+      <div class="nav-submenu">
+        <button data-s="s5" onclick="go('s5',this)"><span class="sub-dot"></span><span class="txt">챗봇</span></button>
+        <button data-s="s6" onclick="go('s6',this)"><span class="sub-dot"></span><span class="txt">동향 인사이트</span></button>
+      </div>
+    </div>
   </nav>
   <div class="foot">데모 단계입니다.<br>저장은 JSON 파일로 관리됩니다.</div>
 </aside>
@@ -37,30 +52,22 @@
         <img src="/static/assets/DC_logo.png?v=3" alt="Docu-C" class="home-logo">
         <span>AI-Powered Report Checking Agent</span>
       </div>
-      <div class="home-grid">
+      <div class="home-grid home-grid-four">
         <button class="home-card" onclick="goTo('s1')">
           <span class="hicon"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg></span>
           <b>대시보드</b>
         </button>
+        <button class="home-card" onclick="goTo('s8')">
+          <span class="hicon"><svg viewBox="0 0 24 24"><path d="M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span>
+          <b>보고서 양식 관리</b>
+        </button>
         <button class="home-card" onclick="goTo('s2')">
-          <span class="hicon"><svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span>
-          <b>업로드</b>
-        </button>
-        <button class="home-card" onclick="goTo('s4')">
           <span class="hicon"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
-          <b>상세 편집</b>
-        </button>
-        <button class="home-card" onclick="goTo('s7')">
-          <span class="hicon"><svg viewBox="0 0 24 24"><path d="m12 3 8 4-8 4-8-4 8-4Z"/><path d="m4 12 8 4 8-4M4 17l8 4 8-4"/></svg></span>
-          <b>취합</b>
+          <b>보고서 편집</b>
         </button>
         <button class="home-card" onclick="goTo('s5')">
-          <span class="hicon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg></span>
-          <b>챗봇</b>
-        </button>
-        <button class="home-card" onclick="goTo('s6')">
-          <span class="hicon"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M8.5 14.5a7 7 0 1 1 7 0c-.9.7-1.5 1.6-1.5 2.5h-4c0-.9-.6-1.8-1.5-2.5Z"/></svg></span>
-          <b>동향 인사이트</b>
+          <span class="hicon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg></span>
+          <b>보고서 이해하기</b>
         </button>
       </div>
     </div>
@@ -136,6 +143,31 @@
     </div>
   </section>
 
+  <!-- ═══════════ 보고서 양식 관리 ═══════════ -->
+  <section id="s8" class="screen">
+    <div class="topbar">
+      <div>
+        <h1>보고서 양식 관리</h1>
+        <p>표준 양식을 등록하고 글꼴·크기·표·프레임 기준을 직접 관리합니다</p>
+      </div>
+      <button class="btn primary" onclick="goTo('s2')">보고서 편집 시작 →</button>
+    </div>
+    <div class="card template-management-card">
+      <h3>적용 중인 양식 기준</h3>
+      <div class="section-meta" id="ruleSource">standard_rules.yaml</div>
+      <ul class="rulelist" id="ruleList"></ul>
+      <div id="ruleEditor" style="display:none;"></div>
+      <div class="template-actions">
+        <button class="btn ghost" id="ruleEditBtn">기준 직접 수정</button>
+        <button class="btn ghost" id="ruleTplBtn">양식 PPTX로 교체</button>
+        <button class="btn ghost" id="ruleResetBtn">기본값 복원</button>
+        <input type="file" id="ruleTplInput" accept=".pptx" style="display:none;">
+      </div>
+      <div class="prog-label" id="ruleStatus"></div>
+      <div class="note">변경한 기준은 다음 양식 검사와 PPT 생성부터 적용됩니다.</div>
+    </div>
+  </section>
+
   <!-- ═══════════ ② 업로드 ═══════════ -->
   <section id="s2" class="screen">
     <div class="topbar">
@@ -148,7 +180,7 @@
       </div>
     </div>
 
-    <div class="grid g2" style="margin-bottom:14px;">
+    <div class="grid" style="margin-bottom:14px;">
       <div class="card">
         <h3>보고서 업로드</h3>
         <div class="dropzone" id="dz">
@@ -172,20 +204,6 @@
         </div>
         <div class="prog-label" id="demoStatus" style="margin-top:10px;"></div>
         <div class="note">샘플은 가상 데이터입니다. ‘양식 위반 섞기’로 자동 수정 기능을 테스트할 수 있습니다.</div>
-      </div>
-      <div class="card">
-        <h3>양식 기준 설정</h3>
-        <div class="section-meta" id="ruleSource">standard_rules.yaml</div>
-        <ul class="rulelist" id="ruleList"></ul>
-        <div id="ruleEditor" style="display:none;"></div>
-        <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
-          <button class="btn ghost" id="ruleEditBtn">기준 직접 수정</button>
-          <button class="btn ghost" id="ruleTplBtn">양식 PPTX로 교체</button>
-          <button class="btn ghost" id="ruleResetBtn">기본값 복원</button>
-          <input type="file" id="ruleTplInput" accept=".pptx" style="display:none;">
-        </div>
-        <div class="prog-label" id="ruleStatus" style="margin-top:10px;"></div>
-        <div class="note">변경한 기준은 다음 양식 검사와 PPT 생성부터 적용됩니다.</div>
       </div>
     </div>
   </section>

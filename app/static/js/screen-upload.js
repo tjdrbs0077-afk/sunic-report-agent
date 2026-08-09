@@ -378,9 +378,14 @@ Screens.s2 = (function(){
       loadRules();
       loadDemoUnits();
       refresh();
+    },
+    loadRulesOnly: function(){
+      bind();
+      loadRules();
     }
   };
 })();
 
 /* 업로드와 취합은 화면만 분리하고 같은 보고서 상태를 공유한다. */
 Screens.s7 = Screens.s2;
+Screens.s8 = { load: Screens.s2.loadRulesOnly };
