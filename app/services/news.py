@@ -579,10 +579,20 @@ ORG_SUFFIX = re.compile(
 SUBJECT_HEAD = re.compile(r"^([^,]{2,24}?)\s*,")
 # 지자체·부처 등 기관 접미사
 ORG_TAIL = re.compile(r"(시|군|구|도|부|청|원|회|단|사)$")
+# 기술어가 이름에 포함돼도 이 접미사는 실제 기관임을 강하게 나타낸다.
+STRONG_ORG_TAIL = re.compile(
+    r"(?:공사|공단|협회|재단|연구원|연구소|진흥원|과학기술원|대학교|산업부|중기부|과기부)$"
+)
 # 주체로 보기 어려운 낱말과 직함
 SUBJECT_STOP = {
     "AI", "데이터", "제조", "산업", "기술", "세계", "국내", "글로벌", "속보", "단독", "인터뷰",
     "오늘", "내년", "올해", "정부", "업계", "시장", "미래", "현장", "특집", "기획",
+}
+# 고유한 기관명이 아니라 업종·집단 전체를 가리키는 표현이다.
+GENERIC_ORG_SUBJECTS = {
+    "기업", "대기업", "중소기업", "스타트업", "연구진", "연구팀", "전문가", "당국",
+    "제조사", "건설사", "통신사", "보험사", "증권사", "운영사", "발전사", "시공사",
+    "완성차", "빅테크", "플랫폼사", "배터리사", "반도체사", "에너지사",
 }
 TITLE_TAIL = re.compile(r"(의원|위원장|장관|차관|사장|대표|회장|교수|본부장|실장|국장|과장)$")
 
@@ -611,6 +621,14 @@ TECH_PATTERNS: list[tuple[str, str]] = [
 TECH_SUFFIX = re.compile(
     r"([가-힣A-Za-z]{2,8}(?:기술|산업|시장|플랫폼|인프라|소재|부품|장비|공정|시스템|생태계|밸류체인|공급망))"
 )
+# 문장 주체처럼 보이더라도 이 말로 끝나면 대체로 기술·산업 개념이다.
+# 특히 영문이 들어갔다는 이유만으로 `AI데이터센터`를 기관으로 보는 것을 막는다.
+TECH_CONCEPT_TAIL = re.compile(
+    r"(?:AI|데이터|데이터센터|센터|반도체|배터리|클라우드|컴퓨팅|네트워크|알고리즘|모델"
+    r"|서비스|솔루션|플랫폼|인프라|기술|산업|시장|소재|부품|장비|공정|시스템|생태계"
+    r"|밸류체인|공급망|모빌리티)$",
+    re.IGNORECASE,
+)
 # 기술어로 쓰기엔 너무 넓은 말
 TECH_STOP = {"관련산업", "전체산업", "국내시장", "해외시장", "글로벌시장", "국내산업", "해당기술", "기존기술"}
 
@@ -626,8 +644,15 @@ def _drop_contained(names: list[str]) -> list[str]:
 
 
 def _looks_like_tech(name: str) -> bool:
-    """'수소환원제철' 처럼 기관 접미사에 걸렸지만 실은 기술어인 경우를 걸러 낸다."""
-    return _is_tech_term(name)
+    """기관 후보 중 실제로는 기술·산업 개념인 표현을 걸러 낸다."""
+    compact = re.sub(r"[\s_·-]+", "", str(name or "").strip())
+    if not compact:
+        return False
+    return (
+        _is_tech_term(compact)
+        or bool(TECH_SUFFIX.fullmatch(compact))
+        or bool(TECH_CONCEPT_TAIL.search(compact))
+    )
 
 
 def _relax_boundaries(pattern: str) -> str:
@@ -649,6 +674,15 @@ _TECH_RE = [(name, re.compile(_relax_boundaries(pattern), re.IGNORECASE))
             for name, pattern in TECH_PATTERNS]
 
 
+def _canonical_org_term(value: str) -> str:
+    """검색어 전체가 사전에 등록된 기관·기업명이면 대표 이름을 돌려준다."""
+    text = str(value or "").strip()
+    for name, pattern in _ORG_RE:
+        if pattern.fullmatch(text):
+            return name
+    return ""
+
+
 def extract_orgs(text: str, limit: int = 4) -> list[str]:
     """기사에서 기업·기관 이름을 뽑는다 (사전 → 접미사 → 문장 주체 순)."""
     found: list[str] = []
@@ -658,7 +692,11 @@ def extract_orgs(text: str, limit: int = 4) -> list[str]:
     found = _drop_contained(found)
 
     for match in ORG_SUFFIX.findall(text):
-        if match in found or len(match) < 3 or _looks_like_tech(match):
+        if (
+            match in found
+            or len(match) < 3
+            or (_looks_like_tech(match) and not STRONG_ORG_TAIL.search(match))
+        ):
             continue
         found.append(match)
     found = _drop_contained(found)
@@ -675,11 +713,33 @@ def extract_orgs(text: str, limit: int = 4) -> list[str]:
             if (
                 2 <= len(candidate) <= 12
                 and candidate not in SUBJECT_STOP
+                and candidate not in GENERIC_ORG_SUBJECTS
                 and not TITLE_TAIL.search(candidate)
+                and not _looks_like_tech(candidate)
                 and (ORG_TAIL.search(candidate) or re.search(r"[A-Za-z]{2,}", candidate))
             ):
                 found.append(candidate)
     return found[:limit]
+
+
+def _node_key(value: str) -> str:
+    """띄어쓰기·구분자 차이를 무시한 노드 비교 키."""
+    return re.sub(r"[\s_·-]+", "", str(value or "")).casefold()
+
+
+def _keyword_org_term(value: str) -> str:
+    """검색어 전체가 기관명일 때만 기관 대표 이름을 돌려준다.
+
+    등록 사전뿐 아니라 `IBM`, `경산시`, `한국AI산업협회`처럼 형태상 명확한
+    기관명도 허용하되, 검색어 일부에 기관명이 섞인 복합 문구는 허용하지 않는다.
+    """
+    text = str(value or "").strip()
+    canonical = _canonical_org_term(text)
+    if canonical:
+        return canonical
+    key = _node_key(text)
+    return next((name for name in extract_orgs(f"{text},", limit=4)
+                 if _node_key(name) == key), "")
 
 
 # 예전 이름 (호출부 호환)
@@ -735,6 +795,7 @@ def build_graph(items: list[dict[str, Any]], unit_name: str,
     org_hits: dict[str, list[int]] = defaultdict(list)
     tech_hits: dict[str, list[int]] = defaultdict(list)
     seed_techs: set[str] = set()          # 보고서 검색어에서 온 기술 (항상 남긴다)
+    seed_orgs: set[str] = set()           # 기관명 자체를 검색한 경우 (기술로 중복시키지 않는다)
     org_tech: dict[tuple[str, str], list[int]] = defaultdict(list)
     tech_tech: dict[tuple[str, str], list[int]] = defaultdict(list)
     org_org: dict[tuple[str, str], list[int]] = defaultdict(list)
@@ -746,9 +807,28 @@ def build_graph(items: list[dict[str, Any]], unit_name: str,
         text = f"{title} {item.get('summary', '')}"
 
         keywords = [k for k in (item.get("matched_keywords") or [item.get("keyword", "")]) if k]
-        seed_techs.update(keywords)
-        techs = list(dict.fromkeys(keywords + extract_techs(text)))
-        orgs = extract_orgs(text)
+        keyword_orgs: list[str] = []
+        keyword_techs: list[str] = []
+        for keyword in keywords:
+            canonical_org = _keyword_org_term(keyword)
+            if canonical_org:
+                keyword_orgs.append(canonical_org)
+                seed_orgs.add(canonical_org)
+            else:
+                keyword_techs.append(keyword)
+                seed_techs.add(keyword)
+
+        techs = list(dict.fromkeys(keyword_techs + extract_techs(text)))
+        orgs = list(dict.fromkeys(keyword_orgs + extract_orgs(text)))
+        # 같은 표현이 양쪽 후보에 잡히면 사전 등록 기관만 기관으로 우선하고,
+        # 나머지는 기술로 분류한다. `AI데이터센터` 같은 중복 주황 노드를 차단한다.
+        tech_keys = {_node_key(name) for name in techs}
+        orgs = [name for name in orgs if (
+            _canonical_org_term(name)
+            or STRONG_ORG_TAIL.search(name)
+            or (_node_key(name) not in tech_keys
+                and not _looks_like_tech(name))
+        )]
         per_item_techs.append(techs)
         per_item_orgs.append(orgs)
 
@@ -768,7 +848,9 @@ def build_graph(items: list[dict[str, Any]], unit_name: str,
                 org_org[tuple(sorted((orgs[i], orgs[j])))].append(index)
 
     # 등장 기사 수 상위만 남긴다. 보고서 검색어 기술은 개수와 무관하게 유지.
-    ranked_orgs = sorted(org_hits.items(), key=lambda kv: (-len(kv[1]), kv[0]))[:max_orgs]
+    all_ranked_orgs = sorted(org_hits.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+    kept_orgs = {name for name, _ in all_ranked_orgs[:max_orgs]} | (seed_orgs & set(org_hits))
+    ranked_orgs = [(name, idx) for name, idx in all_ranked_orgs if name in kept_orgs]
     ranked_techs = sorted(tech_hits.items(), key=lambda kv: (-len(kv[1]), kv[0]))
     kept_techs = {name for name, _ in ranked_techs[:max_techs]} | (seed_techs & set(tech_hits))
     ranked_techs = [(name, idx) for name, idx in ranked_techs if name in kept_techs]
@@ -801,6 +883,9 @@ def build_graph(items: list[dict[str, Any]], unit_name: str,
     for name, indexes in ranked_techs:
         if name in seed_techs:
             link("us", f"t:{name}", "보고서 키워드", indexes, "extracted")
+    for name, indexes in ranked_orgs:
+        if name in seed_orgs:
+            link("us", f"c:{name}", "검색 기관", indexes, "extracted")
     for (org, tech), indexes in org_tech.items():
         if org in kept_orgs and tech in kept_techs:
             link(f"c:{org}", f"t:{tech}", f"기사 {len(indexes)}건", indexes, "extracted")

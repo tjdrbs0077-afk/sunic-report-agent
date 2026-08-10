@@ -192,6 +192,28 @@ class NewsExtractionTests(unittest.TestCase):
         self.assertNotIn("수소환원제철",
                          news.extract_orgs("포스코, 수소환원제철 실증 착수", limit=4))
 
+    def test_ai_data_center_is_not_mistaken_for_an_organisation(self):
+        text = "AI데이터센터, 전력망과 냉각 인프라 수요 확대"
+        self.assertNotIn("AI데이터센터", news.extract_orgs(text, limit=4))
+        self.assertIn("AI", news.extract_techs(text, limit=5))
+        self.assertIn("데이터센터", news.extract_techs(text, limit=5))
+
+    def test_technology_subjects_with_latin_letters_are_not_organisations(self):
+        for subject in ("AI반도체", "생성형AI", "클라우드솔루션"):
+            with self.subTest(subject=subject):
+                self.assertNotIn(subject, news.extract_orgs(f"{subject}, 시장 확대", limit=4))
+
+    def test_generic_company_categories_are_not_organisation_nodes(self):
+        for subject in ("제조사", "건설사", "반도체사"):
+            with self.subTest(subject=subject):
+                self.assertNotIn(subject, news.extract_orgs(f"{subject}, 투자 확대", limit=4))
+
+    def test_explicit_institution_suffix_wins_over_embedded_technology(self):
+        self.assertIn(
+            "한국AI산업협회",
+            news.extract_orgs("한국AI산업협회, 데이터센터 정책 세미나 개최", limit=4),
+        )
+
     def test_parent_and_subsidiary_names_do_not_split_into_two_nodes(self):
         orgs = news.extract_orgs("두산에너빌리티, SMR 주기기 수주", limit=4)
         self.assertIn("두산에너빌리티", orgs)
@@ -272,6 +294,40 @@ class NewsGraphLinkTests(unittest.TestCase):
         self.assertIn("t:자율제조", node_ids)
         self.assertTrue(any(link["source"] == "us" and link["target"] == "t:자율제조"
                             for link in graph["links"]))
+
+    def test_ai_data_center_is_only_a_technology_node(self):
+        keyword = "AI데이터센터"
+        graph = build_graph([{
+            "title": "AI데이터센터, 전력망과 냉각 인프라 수요 확대",
+            "matched_keywords": [keyword],
+        }], keyword)
+
+        company_labels = {node["label"] for node in graph["nodes"] if node["type"] == "company"}
+        tech_labels = {node["label"] for node in graph["nodes"] if node["type"] == "tech"}
+        self.assertNotIn(keyword, company_labels)
+        self.assertIn(keyword, tech_labels)
+
+    def test_known_company_search_is_not_duplicated_as_technology(self):
+        graph = build_graph([{
+            "title": "삼성전자, AI 데이터센터용 반도체 공개",
+            "matched_keywords": ["삼성전자"],
+        }], "삼성전자")
+
+        company_labels = {node["label"] for node in graph["nodes"] if node["type"] == "company"}
+        tech_labels = {node["label"] for node in graph["nodes"] if node["type"] == "tech"}
+        self.assertIn("삼성전자", company_labels)
+        self.assertNotIn("삼성전자", tech_labels)
+
+    def test_unregistered_uppercase_company_query_is_an_organisation(self):
+        graph = build_graph([{
+            "title": "IBM, 양자컴퓨팅 투자 확대",
+            "matched_keywords": ["IBM"],
+        }], "IBM")
+
+        company_labels = {node["label"] for node in graph["nodes"] if node["type"] == "company"}
+        tech_labels = {node["label"] for node in graph["nodes"] if node["type"] == "tech"}
+        self.assertIn("IBM", company_labels)
+        self.assertNotIn("IBM", tech_labels)
 
     def test_articles_and_nodes_index_each_other(self):
         """기사 → 노드, 노드 → 기사 양쪽 색인이 있어야 화면에서 서로 하이라이트된다."""
