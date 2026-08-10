@@ -154,7 +154,7 @@
     <div class="topbar">
       <div>
         <h1>보고서 양식 관리</h1>
-        <p>표준 양식을 등록하고 글꼴·크기·표·프레임 기준을 직접 관리합니다</p>
+        <p>표준 양식을 등록하고 글꼴·크기·간격·들여쓰기·표·프레임 기준을 직접 관리합니다</p>
       </div>
       <button class="btn primary" onclick="goTo('s2')">보고서 편집 시작 →</button>
     </div>
@@ -225,8 +225,8 @@
   <section id="s3" class="screen">
     <div class="topbar">
       <div>
-        <h1>원본 비교 · AI 검토</h1>
-        <p>상세 편집에 필요한 경우 원본과 교정본, 양식 위반 및 AI 피드백을 함께 확인합니다</p>
+        <h1>원본 비교 · 수정 내역</h1>
+        <p>상세 편집에 필요한 경우 원본과 교정본, 양식 위반 및 수정 내역을 함께 확인합니다</p>
       </div>
       <button class="btn ghost" onclick="goTo('s4')">← 상세 편집으로 돌아가기</button>
     </div>
@@ -268,24 +268,14 @@
     </div>
 
     <div class="card detail-review-card">
-      <div class="detail-review-tabs" role="tablist" aria-label="검토 내역">
-        <button class="active" type="button" role="tab" aria-selected="true" data-panel="changes">
-          수정 내역 <span id="detFixCount"></span>
-        </button>
-        <button type="button" role="tab" aria-selected="false" data-panel="feedback">AI 피드백</button>
+      <div class="detail-section-head detail-review-head">
+        <div>
+          <h3>수정 내역 <span id="detFixCount"></span></h3>
+          <p>발견된 양식 위반과 적용된 교정을 유형별로 보여줍니다.</p>
+        </div>
       </div>
-      <section class="detail-review-panel active" id="detPanelChanges" role="tabpanel">
-        <div class="detail-panel-intro">
-          <b>자동 교정 요약</b><span>발견된 양식 위반과 적용된 교정을 유형별로 보여줍니다.</span>
-        </div>
+      <section class="detail-review-panel" id="detPanelChanges">
         <ul class="fixlist" id="detFixList"></ul>
-      </section>
-      <section class="detail-review-panel" id="detPanelFeedback" role="tabpanel" hidden>
-        <div class="detail-panel-intro">
-          <b>AI 내용 검토</b><span>필요한 제안만 선택해 최종본 발표자 노트에 반영합니다.</span>
-        </div>
-        <div id="detFbList"><div class="note">AI 피드백 탭을 열면 내용을 검토합니다.</div></div>
-        <div class="note detail-feedback-note">선택된 피드백은 해당 슬라이드의 <b>발표자 노트</b>에 기록됩니다.</div>
       </section>
     </div>
   </section>
@@ -298,7 +288,7 @@
         <p>내용과 레이아웃을 페이지 단위로 조정한 뒤 다운로드 단계로 넘깁니다</p>
       </div>
       <div class="top-actions">
-        <button class="btn ghost" onclick="goTo('s3')">원본 비교 · AI 검토</button>
+        <button class="btn ghost" onclick="goTo('s3')">원본 비교 · 수정 내역</button>
         <button class="btn primary flow-action" onclick="goTo('s7')">다음: 다운로드 →</button>
       </div>
     </div>

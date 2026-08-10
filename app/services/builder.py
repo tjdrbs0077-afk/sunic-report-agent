@@ -33,14 +33,14 @@ WHITE = RGBColor(255, 255, 255)
 # 이전에는 단락 level 만 지정해 번호가 아예 찍히지 않거나 임의로 보였다.
 
 _LEVEL_FALLBACK = [
-    {"marL": 265113, "indent": -265113, "bullet": "auto:1.", "spc_before": 10},
-    {"marL": 538163, "indent": -266700, "bullet": "auto:1)", "spc_before": 10},
-    {"marL": 714375, "indent": -179388, "bullet": "wingdings:❑", "spc_before": 5},
-    {"marL": 892175, "indent": -177800, "bullet": "arial:–", "spc_before": 5},
-    {"marL": 1081088, "indent": -188913, "bullet": "arial:•", "spc_before": 5},
+    {"marL": 265113, "indent": -265113, "bullet": "auto:1.", "line_spacing": 100, "spc_before": 10},
+    {"marL": 538163, "indent": -266700, "bullet": "auto:1)", "line_spacing": 100, "spc_before": 10},
+    {"marL": 714375, "indent": -179388, "bullet": "wingdings:❑", "line_spacing": 100, "spc_before": 5},
+    {"marL": 892175, "indent": -177800, "bullet": "arial:–", "line_spacing": 100, "spc_before": 5},
+    {"marL": 1081088, "indent": -188913, "bullet": "arial:•", "line_spacing": 100, "spc_before": 5},
 ]
 _AUTONUM_TYPES = {"1.": "arabicPeriod", "1)": "arabicParenR", "(1)": "arabicParenBoth", "a.": "alphaLcPeriod"}
-_BULLET_FONTS = {"wingdings": "Wingdings", "arial": "Arial"}
+_BULLET_FONTS = {"wingdings": "Wingdings", "arial": "Arial", "char": "Arial"}
 _std_levels_cache: list[dict[str, Any]] | None = None
 
 
@@ -59,6 +59,12 @@ def _std_levels() -> list[dict[str, Any]]:
     return _std_levels_cache
 
 
+def reset_rule_cache() -> None:
+    """양식 기준을 저장하거나 교체한 뒤 단계별 생성 규칙을 다시 읽게 한다."""
+    global _std_levels_cache
+    _std_levels_cache = None
+
+
 def _apply_bullet(paragraph, level: int, first: bool = False) -> None:
     """단락에 표준 들여쓰기·줄간격·앞 간격과 번호/글머리 기호를 명시한다.
 
@@ -73,9 +79,10 @@ def _apply_bullet(paragraph, level: int, first: bool = False) -> None:
         for el in pPr.findall(qn(tag)):
             pPr.remove(el)
 
-    # 줄간격 100% + 단락 앞 간격 (샘플 실측: 레벨1·2 = 10pt, 3~5 = 5pt)
+    # 단계별 줄간격 + 단락 앞 간격 (샘플 실측: 레벨1·2 = 10pt, 3~5 = 5pt)
     ln = pPr.makeelement(qn("a:lnSpc"), {})
-    ln.append(ln.makeelement(qn("a:spcPct"), {"val": "100000"}))
+    line_spacing = float(spec.get("line_spacing", 100))
+    ln.append(ln.makeelement(qn("a:spcPct"), {"val": str(int(round(line_spacing * 1000)))}))
     pPr.append(ln)
     spc_pt = 0 if first else float(spec.get("spc_before", 0))   # 첫 단락은 위 여백 불필요
     bef = pPr.makeelement(qn("a:spcBef"), {})
@@ -108,6 +115,22 @@ def parse_hex(value: str | None, fallback: str = "#000000") -> RGBColor:
     if len(raw) != 6:
         raw = fallback.lstrip("#")
     return RGBColor(int(raw[0:2], 16), int(raw[2:4], 16), int(raw[4:6], 16))
+
+
+def _set_cell_border(cell, color: str, width_pt: float = 0.75) -> None:
+    """PowerPoint 표 셀의 네 방향 선 색을 동일하게 설정한다."""
+    raw = str(color or "#7F7F7F").lstrip("#").upper()
+    if len(raw) != 6:
+        raw = "7F7F7F"
+    tc_pr = cell._tc.get_or_add_tcPr()
+    for tag in ("a:lnL", "a:lnR", "a:lnT", "a:lnB"):
+        old = tc_pr.find(qn(tag))
+        if old is not None:
+            tc_pr.remove(old)
+        line = etree.SubElement(tc_pr, qn(tag), {"w": str(int(round(width_pt * 12700)))})
+        solid = etree.SubElement(line, qn("a:solidFill"))
+        etree.SubElement(solid, qn("a:srgbClr"), {"val": raw})
+        etree.SubElement(line, qn("a:prstDash"), {"val": "solid"})
 
 
 def safe_rgb(color) -> str | None:
@@ -253,11 +276,15 @@ def _read_placeholder_hierarchy(path: Path) -> list[dict[str, Any]]:
                 bullet = node.find("a:buChar", ns).get("char", "")
             elif node.find("a:buNone", ns) is not None:
                 bullet = "none"
+            line_pct = node.find("a:lnSpc/a:spcPct", ns)
+            before_pts = node.find("a:spcBef/a:spcPts", ns)
             out.append({
                 "level": level - 1,
                 "size_pt": (float(rpr.get("sz")) / 100) if rpr is not None and rpr.get("sz") else None,
                 "margin_left_in": float(node.get("marL", 0)) / EMU,
                 "indent_in": float(node.get("indent", 0)) / EMU,
+                "line_spacing": (float(line_pct.get("val")) / 1000) if line_pct is not None else None,
+                "spc_before": (float(before_pts.get("val")) / 100) if before_pts is not None else None,
                 "bullet": bullet,
             })
     return out
@@ -462,6 +489,9 @@ def replace_cell_text(cell, text: str, header: bool, key: bool, cfg: dict[str, A
     if header:
         p.alignment = PP_ALIGN.CENTER
         cell.fill.solid(); cell.fill.fore_color.rgb = parse_hex(cfg.get("header_fill"), "#DCE6F2")
+    elif key:
+        # 참고 양식: 데이터 행의 맨 왼쪽 구분 열은 따뜻한 회색으로 구분한다.
+        cell.fill.solid(); cell.fill.fore_color.rgb = parse_hex(cfg.get("first_col_fill"), "#EEECE1")
 
 
 def fill_table_preserve(shape, spec: dict[str, Any], cfg: dict[str, Any]) -> None:
@@ -482,19 +512,35 @@ def fill_table_preserve(shape, spec: dict[str, Any], cfg: dict[str, Any]) -> Non
 
 
 def _apply_geometry(shape, cfg: dict[str, Any]) -> None:
-    for attr, key in (("left", "x"), ("top", "y"), ("width", "w"), ("height", "h")):
+    for attr, key in (("left", "x"), ("top", "y"), ("height", "h")):
         if key in cfg:
             setattr(shape, attr, Inches(float(cfg[key])))
+    if "w" not in cfg:
+        return
+    target_width = Inches(float(cfg["w"]))
+    # 표는 GraphicFrame 폭만 바꾸면 열 너비가 그대로 남는다. 기존 비율을 유지해 함께 조정한다.
+    if getattr(shape, "has_table", False):
+        columns = list(shape.table.columns)
+        current_width = sum(int(column.width) for column in columns)
+        if columns and current_width > 0:
+            used = 0
+            for column in columns[:-1]:
+                width = int(round(int(target_width) * int(column.width) / current_width))
+                column.width = width
+                used += width
+            columns[-1].width = max(1, int(target_width) - used)
+    shape.width = target_width
 
 
 def apply_rule_fonts(profile: dict[str, Any]) -> dict[str, Any]:
-    """config/standard_rules.yaml의 fonts 설정을 프로파일 전체에 반영한다.
+    """config/standard_rules.yaml의 직접 편집값을 생성 프로파일 전체에 반영한다.
 
-    기준을 직접 수정하면(예: 나눔스퀘어 → 맑은 고딕) 생성되는 PPT 폰트가 함께 바뀐다.
+    기준을 직접 수정하면 글꼴뿐 아니라 제목·본문·표·프레임·각주도 생성 PPT에 적용된다.
     """
     from app.services import validator
 
-    fonts = validator.load_rules().get("fonts") or {}
+    rules = validator.load_rules()
+    fonts = rules.get("fonts") or {}
     latin = fonts.get("latin") or "Corbel"
     korean = fonts.get("korean") or "나눔스퀘어"
     heading = fonts.get("heading_korean") or korean
@@ -507,17 +553,39 @@ def apply_rule_fonts(profile: dict[str, Any]) -> dict[str, Any]:
     profile["body"]["font_ea"] = korean
     profile["body"]["level_ea_fonts"] = [heading, korean, korean, korean, korean]
     # 레벨별 크기·볼드도 standard_rules.yaml body_levels 를 단일 진실로 삼는다
-    rule_levels = validator.load_rules().get("body_levels") or []
+    title_rules = rules.get("title") or {}
+    for key in ("font_size", "bold", "x", "y"):
+        if key in title_rules:
+            profile["title"][key] = title_rules[key]
+
+    rule_levels = rules.get("body_levels") or []
     if len(rule_levels) >= 5:
         profile["body"]["level_sizes"] = [
             float(lv.get("size", d)) for lv, d in zip(rule_levels, [14, 13, 12, 11, 10])]
         profile["body"]["level_bold"] = [bool(lv.get("bold", False)) for lv in rule_levels[:5]]
     profile["footnote"]["font_latin"] = latin
     profile["footnote"]["font_ea"] = korean
+    footnote_rules = rules.get("footnote") or {}
+    if "font_size" in footnote_rules:
+        profile["footnote"]["font_size"] = float(footnote_rules["font_size"])
+
+    table_rules = rules.get("table") or {}
     for key in ("table_type1", "table_type3_top", "table_type3_bottom"):
         profile[key]["font_latin"] = latin
         profile[key]["font_ea"] = korean
         profile[key]["header_font_ea"] = heading
+        if "x_in" in table_rules:
+            profile[key]["x"] = float(table_rules["x_in"])
+        if "width_in" in table_rules:
+            profile[key]["w"] = float(table_rules["width_in"])
+        for rule_key in ("header_fill", "first_col_fill", "header_font_size", "body_font_size"):
+            if rule_key in table_rules:
+                profile[key][rule_key] = table_rules[rule_key]
+
+    frame_rules = rules.get("frame") or {}
+    for key in ("header_fill", "border_color", "header_font_size"):
+        if key in frame_rules:
+            profile["frame"][key] = frame_rules[key]
     return profile
 
 
@@ -551,6 +619,9 @@ def apply_layout_base(prs: Presentation, cfg: dict[str, Any]) -> None:
     frame_shape.table.columns[1].width = Inches(float(frame["w"] - frame["sidebar_w"]))
     frame_shape.table.rows[0].height = Inches(float(frame["header_h"]))
     frame_shape.table.rows[1].height = Inches(float(frame["h"] - frame["header_h"]))
+    for row in frame_shape.table.rows:
+        for cell in row.cells:
+            _set_cell_border(cell, frame.get("border_color", "#7F7F7F"))
     for c in range(2):
         cell = frame_shape.table.cell(0, c)
         cell.fill.solid(); cell.fill.fore_color.rgb = parse_hex(frame.get("header_fill"), "#B7D3EE")

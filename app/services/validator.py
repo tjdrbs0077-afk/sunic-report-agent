@@ -234,12 +234,14 @@ def derive_rules_from_pptx(path: Path) -> dict[str, Any]:
     body_sizes = profile["body"].get("level_sizes", [14, 13, 12, 11, 10])
     body_bold = profile["body"].get("level_bold", [True, True, False, False, False])
     default_bullets = ["auto:1.", "auto:1)", "wingdings:❑", "arial:–", "arial:•"]
+    base_levels = base.get("body_levels") or []
 
     # Wingdings 글머리는 사설영역 코드(U+F0xx)로 저장돼 그대로 두면 화면에서 깨져 보인다.
     wingdings_map = {"": "wingdings:❑", "": "wingdings:■", "": "wingdings:◆", "": "wingdings:▪"}
     levels: list[dict[str, Any]] = []
     for i in range(5):
         node = hierarchy[i] if i < len(hierarchy) else {}
+        base_level = base_levels[i] if i < len(base_levels) else {}
         bullet = node.get("bullet") or ""
         if bullet == "arabicPeriod":
             bullet_label = "auto:1."
@@ -257,6 +259,9 @@ def derive_rules_from_pptx(path: Path) -> dict[str, Any]:
             "bold": bool(body_bold[min(i, len(body_bold) - 1)]),
             "marL": int(round(float(node.get("margin_left_in", 0)) * 914400)),
             "indent": int(round(float(node.get("indent_in", 0)) * 914400)),
+            # 간격 값은 양식 계층에서 읽히면 실측값을, 없으면 현재 기준을 유지한다.
+            "line_spacing": float(node.get("line_spacing") or base_level.get("line_spacing", 100)),
+            "spc_before": float(node.get("spc_before") or base_level.get("spc_before", 10 if i < 2 else 5)),
             "bullet": bullet_label,
         })
 
@@ -287,7 +292,7 @@ def derive_rules_from_pptx(path: Path) -> dict[str, Any]:
             "header_fill": table.get("header_fill", "#DCE6F2"),
             "header_font_size": float(table.get("header_font_size", 10.5)),
             "body_font_size": float(table.get("body_font_size", 10)),
-            "first_col_fill": (base.get("table") or {}).get("first_col_fill", "#E8E8E8"),
+            "first_col_fill": (base.get("table") or {}).get("first_col_fill", "#EEECE1"),
             "gridline": (base.get("table") or {}).get("gridline", {"width_pt": 0.75, "color": "#BFBFBF"}),
         },
         "frame": {
