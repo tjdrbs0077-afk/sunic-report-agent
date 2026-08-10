@@ -11,6 +11,7 @@ from app.services import news
 from app.services.news import (_published_at, _window_query, balanced_pool,
                                build_graph, relevance_score, rescore,
                                sort_articles, spread_by_day)
+from app.routers.news import _with_sort
 
 
 def _aged(title: str, days: float, score: float) -> dict:
@@ -241,6 +242,23 @@ class NewsGraphRichnessTests(unittest.TestCase):
 
 
 class NewsGraphLinkTests(unittest.TestCase):
+    def test_graph_center_uses_the_exact_search_keyword(self):
+        keyword = "AI 데이터센터 전력 인프라 동향"
+        result = {
+            "items": [{
+                "title": "AI 데이터센터 전력 수요 확대",
+                "keyword": keyword,
+                "matched_keywords": [keyword],
+            }]
+        }
+
+        response = _with_sort(result, "accuracy", 10, keyword)
+        center = next(node for node in response["graph"]["nodes"] if node["id"] == "us")
+
+        self.assertEqual(response["graph_keyword"], keyword)
+        self.assertEqual(center["label"], keyword)
+        self.assertNotIn("검색", center["label"])
+
     def test_direct_search_articles_create_a_linked_graph(self):
         graph = build_graph([
             {

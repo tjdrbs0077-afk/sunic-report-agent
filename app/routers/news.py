@@ -52,7 +52,7 @@ def _with_age(entry: dict[str, Any], from_cache: bool) -> dict[str, Any]:
 
 
 def _with_sort(result: dict[str, Any], order: str, limit: int,
-               graph_label: str = "") -> dict[str, Any]:
+               graph_keyword: str = "") -> dict[str, Any]:
     if order not in {"accuracy", "latest"}:
         raise HTTPException(400, "정렬 기준은 accuracy 또는 latest여야 합니다.")
     out = dict(result)
@@ -67,11 +67,14 @@ def _with_sort(result: dict[str, Any], order: str, limit: int,
     # 캐시 파일까지 흘러 들어간다. 화면용 사본을 따로 만든다.
     out["items"] = [dict(item) for item in visible]
     out["sort"] = order
-    if graph_label:
+    graph_keyword = (graph_keyword or "").strip()
+    if graph_keyword:
         # 지식맵은 현재 정렬의 **상위 GRAPH_ARTICLES 건**으로 만든다.
         # build_graph 가 각 기사에 node_ids 를 채워 준다 (양방향 하이라이트용).
         seed = out["items"][:news.GRAPH_ARTICLES]
-        out["graph"] = news.build_graph(seed, graph_label)
+        out["graph"] = news.build_graph(seed, graph_keyword)
+        # 화면 중앙의 빨간 노드는 보고서명이 아니라 실제 검색 키워드를 표시한다.
+        out["graph_keyword"] = graph_keyword
         for item in out["items"][news.GRAPH_ARTICLES:]:
             item["node_ids"] = []   # 지식맵 밖 기사도 키는 갖고 있게 한다
         out["graph_basis"] = order
@@ -101,6 +104,8 @@ def report_news(report_id: str, limit: int = 12, force: bool = False,
     """
     payload = store.report_payload(report_id)
     unit = payload["unit"]
+    terms = news.build_search_terms(payload)
+    primary_keyword = terms[0] if terms else ""
     limit = min(max(limit, 1), 30)
     lookback = min(max(days, 1), 90)
     cache = _load_cache()
@@ -110,9 +115,8 @@ def report_news(report_id: str, limit: int = 12, force: bool = False,
     cache_is_current = (entry and entry.get("version") == news.CACHE_VERSION
                         and int(entry.get("lookback_days") or 0) >= lookback)
     if cache_is_current and not force and _age_seconds(entry.get("fetched_at", "")) < news.REFRESH_INTERVAL:
-        return _with_sort(_with_age(entry, True), sort, limit, unit["name"])
+        return _with_sort(_with_age(entry, True), sort, limit, primary_keyword)
 
-    terms = news.build_search_terms(payload)
     if not terms:
         return _with_sort(_with_age({
             "items": [], "keywords": [], "graph": {"nodes": [], "links": []},
@@ -133,8 +137,8 @@ def report_news(report_id: str, limit: int = 12, force: bool = False,
     if result["items"] or not entry:
         cache[report_id] = result
         _save_cache(cache)
-        return _with_sort(_with_age(result, False), sort, limit, unit["name"])
+        return _with_sort(_with_age(result, False), sort, limit, primary_keyword)
     # 수집에 실패했으면 직전 결과를 계속 보여준다.
     stale = _with_age(entry, True)
     stale["reason"] = result.get("reason", "")
-    return _with_sort(stale, sort, limit, unit["name"])
+    return _with_sort(stale, sort, limit, primary_keyword)

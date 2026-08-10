@@ -778,7 +778,7 @@ def build_graph(items: list[dict[str, Any]], unit_name: str,
         return [items[i].get("title", "") for i in indexes[:take]]
 
     nodes: list[dict[str, Any]] = [{
-        "id": "us", "type": "us", "label": _short(unit_name, 14),
+        "id": "us", "type": "us", "label": str(unit_name or "").strip(),
         "weight": len(items), "articles": [], "articles_idx": list(range(len(items))),
     }]
     for name, indexes in ranked_orgs:

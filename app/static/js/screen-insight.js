@@ -279,7 +279,7 @@ Screens.s6 = (function(){
       renderFetchInfo(d);
       $id('insArtSub').textContent = sortSubLabel(d);
       reportGraph = d.graph || null;
-      graphContextLabel = d.unit || '';
+      graphContextLabel = d.graph_keyword || '';
       graphBasis = d.graph_basis || articleSort;
       rebuildGraph();
       $id('insKwSub').textContent = (d.unit || '') + ' 보고서에서 자동 추출 · 클릭하면 해당 키워드로 검색';
@@ -299,7 +299,7 @@ Screens.s6 = (function(){
       renderArticles(d.items, d.reason || '검색 결과가 없습니다.');
       $id('insArtSub').textContent = '‘' + q + '’ · ' + sortSubLabel(d);
       reportGraph = d.graph || null;
-      graphContextLabel = q + ' 검색';
+      graphContextLabel = d.graph_keyword || q;
       graphBasis = d.graph_basis || articleSort;
       rebuildGraph();
     }).catch(function(e){
@@ -308,18 +308,9 @@ Screens.s6 = (function(){
   }
 
   /* ── 두 그래프 스키마 통합 ── */
-  /* "01_사업단" 같은 파일 정렬용 접두 번호만 떼어 낸다.
-     구분자를 +(하나 이상)로 둔 것이 핵심 — *(0개 이상)이면 "1팀_AI데이터센터" 의
-     앞 숫자까지 먹어 "팀_AI데이터센터" 가 된다. 숫자가 이름의 일부인 경우다. */
-  function stripIndexPrefix(name){
-    return String(name || '').replace(/^\d+[_.\s-]+/, '');
-  }
   function currentBizLabel(){
-    if(graphContextLabel) return stripIndexPrefix(graphContextLabel);
-    /* 중앙 노드 라벨 = 선택된 사업단명 */
-    var sel = $id('insReportSel');
-    var rep = reports.filter(function(r){ return r.id === sel.value; })[0];
-    return rep ? stripIndexPrefix(rep.name) : '사업단';
+    /* 중앙 빨간 노드는 서버가 실제 뉴스 검색에 사용한 키워드만 표시한다. */
+    return String(graphContextLabel || '').trim() || '검색 키워드';
   }
   function rebuildGraph(){
     var byId = {}, edges = [];
@@ -406,7 +397,7 @@ Screens.s6 = (function(){
   }
   function nodeRadius(n){
     if(n.type === 'biz'){
-      /* 중앙 노드는 사업단명이 원 안에 들어가도록 반지름을 라벨 크기에 맞춘다 */
+      /* 중앙 노드는 검색 키워드가 원 안에 들어가도록 반지름을 라벨 크기에 맞춘다 */
       var lines = wrapLabel(n.label, 7);
       var longest = lines.reduce(function(m, l){ return Math.max(m, l.length); }, 0);
       return Math.max(40, Math.min(60, longest * 5.8 + 10));
@@ -430,7 +421,7 @@ Screens.s6 = (function(){
     return lines.length ? lines : ['이름 없음'];
   }
   function labelMetrics(n, p, r){
-    /* biz 는 사업단명을 원 안에 흰 글자로 그린다 */
+    /* biz 는 검색 키워드를 원 안에 흰 글자로 그린다 */
     if(n.type === 'biz'){
       var bizLines = wrapLabel(n.label, 7);
       return {id:n.id, x:p.x, y:p.y, w:r * 2, h:r * 2, lines:bizLines, biz:true};
