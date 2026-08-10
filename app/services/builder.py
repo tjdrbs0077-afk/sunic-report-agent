@@ -299,10 +299,11 @@ def clone_slide(prs: Presentation, source_index: int):
     dest = prs.slides.add_slide(source.slide_layout)
     for sh in list(dest.shapes):
         remove_shape(sh)
-    for element in source.shapes._spTree:
-        if element.tag.endswith("}extLst"):
-            continue
-        dest.shapes._spTree.insert_element_before(deepcopy(element), "p:extLst")
+    # _spTree 전체를 복사하면 루트 구조 노드(nvGrpSpPr/grpSpPr)까지 중복되어
+    # LibreOffice에서는 열리지만 Microsoft PowerPoint에서는 손상 파일로 거부된다.
+    # 실제 도형 요소만 복사해 슬라이드 XML의 필수 순서를 보존한다.
+    for shape in source.shapes:
+        dest.shapes._spTree.insert_element_before(deepcopy(shape._element), "p:extLst")
     return dest
 
 
@@ -851,6 +852,42 @@ def _remove_slide_at(prs: Presentation, index: int) -> None:
     prs.slides._sldIdLst.remove(slide_id)
 
 
+def _validate_generated_pptx(path: Path) -> None:
+    """다운로드 전에 PPTX 압축과 슬라이드 루트 구조를 검증한다.
+
+    python-pptx와 LibreOffice는 중복된 spTree 구조 노드를 묵인하지만 Microsoft
+    PowerPoint는 파일 전체를 손상된 것으로 거부한다. 서버에서 그 상태를 미리 차단한다.
+    """
+    ns = {"p": "http://schemas.openxmlformats.org/presentationml/2006/main"}
+    try:
+        with ZipFile(path) as package:
+            damaged = package.testzip()
+            if damaged:
+                raise ValueError(f"PPTX 압축 항목이 손상되었습니다: {damaged}")
+            slide_names = [
+                name for name in package.namelist()
+                if re.fullmatch(r"ppt/slides/slide\d+\.xml", name)
+            ]
+            if not slide_names:
+                raise ValueError("PPTX에 슬라이드 XML이 없습니다.")
+            for name in slide_names:
+                root = etree.fromstring(package.read(name))
+                tree = root.find("p:cSld/p:spTree", ns)
+                if tree is None:
+                    raise ValueError(f"{name}에 슬라이드 도형 트리가 없습니다.")
+                nv_count = len(tree.findall("p:nvGrpSpPr", ns))
+                grp_count = len(tree.findall("p:grpSpPr", ns))
+                if nv_count != 1 or grp_count != 1:
+                    raise ValueError(
+                        f"{name}의 루트 그룹 구조가 잘못되었습니다 "
+                        f"(nvGrpSpPr={nv_count}, grpSpPr={grp_count})."
+                    )
+        # 관계·콘텐츠 타입까지 python-pptx가 다시 읽을 수 있는지 최종 확인한다.
+        Presentation(path)
+    except (OSError, KeyError, etree.XMLSyntaxError) as exc:
+        raise ValueError(f"생성된 PPTX 구조를 읽을 수 없습니다: {exc}") from exc
+
+
 def _overflow_policy() -> dict[str, Any]:
     """넘침 처리 방식 — config/standard_rules.yaml 의 overflow 설정.
 
@@ -973,8 +1010,13 @@ def generate_report(template_path: Path, unit: dict[str, Any], slides_data: list
         fill_slide(prs.slides[i - 1], data, i, cfg)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = out_path.with_suffix(".tmp.pptx")
-    prs.save(tmp)
-    tmp.replace(out_path)
+    try:
+        prs.save(tmp)
+        _validate_generated_pptx(tmp)
+        tmp.replace(out_path)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
     return len(slides_data)
 
 
@@ -982,10 +1024,8 @@ def append_slide_from_source(dest: Presentation, source_slide, layout_index: int
     new_slide = dest.slides.add_slide(dest.slide_layouts[layout_index])
     for sh in list(new_slide.shapes):
         remove_shape(sh)
-    for element in source_slide.shapes._spTree:
-        if element.tag.endswith("}extLst"):
-            continue
-        new_slide.shapes._spTree.insert_element_before(deepcopy(element), "p:extLst")
+    for shape in source_slide.shapes:
+        new_slide.shapes._spTree.insert_element_before(deepcopy(shape._element), "p:extLst")
 
 
 def merge_reports(paths: list[Path], out_path: Path) -> None:
@@ -996,4 +1036,12 @@ def merge_reports(paths: list[Path], out_path: Path) -> None:
         src = Presentation(path)
         for slide in src.slides:
             append_slide_from_source(base, slide)
-    base.save(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = out_path.with_suffix(".tmp.pptx")
+    try:
+        base.save(tmp)
+        _validate_generated_pptx(tmp)
+        tmp.replace(out_path)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
