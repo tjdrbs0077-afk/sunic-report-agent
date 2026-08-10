@@ -507,11 +507,17 @@
 
     <div class="grid g2 insight-layout">
       <div class="card">
-        <h3>관련 공개 기사 <span class="sub" id="insArtSub">관련도순 · 조사 과정에서 수집</span></h3>
+        <div class="article-list-head">
+          <h3>관련 공개 기사 <span class="sub" id="insArtSub">보고서 기준 검색 결과</span></h3>
+          <div class="news-sort-switch" role="tablist" aria-label="기사 정렬 기준">
+            <button type="button" class="active" role="tab" aria-selected="true" data-news-sort="accuracy">정확순</button>
+            <button type="button" role="tab" aria-selected="false" data-news-sort="latest">최신순</button>
+          </div>
+        </div>
         <div id="artList"></div>
       </div>
       <div class="card insight-graph-card">
-        <h3>기업·기술 지식맵 <span class="sub" id="insGraphSub">보고서 키워드 뉴스 기반</span></h3>
+        <h3>기관·기술 지식맵 <span class="sub" id="insGraphSub">상위 기사에서 추출</span></h3>
         <div class="insight-graph-canvas">
           <svg id="graph" viewBox="0 0 720 500" width="100%" role="img" aria-label="기업·기관과 기술의 관계 그래프"></svg>
           <div class="graph-zoom">
@@ -523,12 +529,14 @@
         </div>
         <div class="legend-inline">
           <span><i class="lg-dot" style="background:#f47725"></i>기업·기관</span>
-          <span><i class="lg-dot" style="background:#1baf7a"></i>기술</span>
-          <span>─ 기사 근거 관계 (굵을수록 함께 언급된 기사가 많음)</span>
+          <span><i class="lg-dot" style="background:#1baf7a"></i>기술·산업</span>
+          <span>─ 기사 근거 (굵을수록 함께 언급된 기사가 많음)</span>
+          <span>┈ 같은 기사에 함께 등장</span>
         </div>
         <div id="graphMore"></div>
         <div id="nodeDetail" class="note" style="display:none;"></div>
-        <div class="note">보고서 키워드로 수집한 뉴스에서 추출한 기업·기술 관계입니다. 노드를 클릭하면 상세 정보와 ‘챗봇에 물어보기’가 표시됩니다.</div>
+        <div class="note">왼쪽 목록 <b>상위 10개 기사</b>의 제목·요약에서 기업·기관과 기술어를 뽑아 이은 관계도입니다.
+          노드를 클릭하면 그 노드의 근거 기사만 목록에 남고, 기사를 클릭하면 그 기사에서 나온 노드가 강조됩니다.</div>
       </div>
     </div>
   </section>
