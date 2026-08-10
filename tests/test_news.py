@@ -208,6 +208,21 @@ class NewsExtractionTests(unittest.TestCase):
             with self.subTest(subject=subject):
                 self.assertNotIn(subject, news.extract_orgs(f"{subject}, 투자 확대", limit=4))
 
+    def test_action_nouns_are_not_organisation_names(self):
+        cases = (
+            "철회, 기존 계획을 다시 검토",
+            "정부 계획 철회, 업계 대응 주목",
+            "재정 지원, 데이터센터 투자 촉진",
+            "사업 재검토, 다음 달 결론",
+        )
+        for title in cases:
+            with self.subTest(title=title):
+                self.assertEqual(news.extract_orgs(title, limit=4), [])
+
+    def test_specific_institution_forms_are_still_recognised(self):
+        self.assertIn("경산시", news.extract_orgs("경산시, 데이터센터 유치 추진", limit=4))
+        self.assertIn("산업위원회", news.extract_orgs("산업위원회, 지원안 의결", limit=4))
+
     def test_explicit_institution_suffix_wins_over_embedded_technology(self):
         self.assertIn(
             "한국AI산업협회",
@@ -306,6 +321,16 @@ class NewsGraphLinkTests(unittest.TestCase):
         tech_labels = {node["label"] for node in graph["nodes"] if node["type"] == "tech"}
         self.assertNotIn(keyword, company_labels)
         self.assertIn(keyword, tech_labels)
+
+    def test_action_noun_does_not_become_an_organisation_node(self):
+        graph = build_graph([{
+            "title": "정부 계획 철회, 업계 대응 주목",
+            "matched_keywords": ["정책 변경"],
+        }], "정책 변경")
+
+        company_labels = {node["label"] for node in graph["nodes"] if node["type"] == "company"}
+        self.assertNotIn("철회", company_labels)
+        self.assertEqual(company_labels, set())
 
     def test_known_company_search_is_not_duplicated_as_technology(self):
         graph = build_graph([{

@@ -577,8 +577,15 @@ ORG_SUFFIX = re.compile(
 )
 # 기사 제목은 "주체, 내용" 형태가 많다 — 쉼표 앞을 주체 후보로 본다
 SUBJECT_HEAD = re.compile(r"^([^,]{2,24}?)\s*,")
-# 지자체·부처 등 기관 접미사
-ORG_TAIL = re.compile(r"(시|군|구|도|부|청|원|회|단|사)$")
+# 쉼표 앞 주체를 사전 밖 기관으로 인정할 때 쓰는 구체적인 형태.
+# `원·회·단·사` 한 글자만 검사하면 `지원·철회` 같은 동작성 명사까지 기관이 된다.
+LOCAL_GOV_TAIL = re.compile(r"(?:특별시|광역시|자치시|자치도|[가-힣]{2,}(?:시|군|구|도))$")
+INSTITUTION_TAIL = re.compile(
+    r"(?:위원회|협의회|연합회|의회|학회|총회|사업단|본부|법인|회사|병원|법원"
+    r"|검찰청|경찰청|소방청|교육청|세관|공사|공단|협회|재단|연구원|연구소"
+    r"|진흥원|과학기술원|대학교|대학)$"
+)
+LATIN_ORG_NAME = re.compile(r"[A-Z][A-Z0-9&.]{1,11}")
 # 기술어가 이름에 포함돼도 이 접미사는 실제 기관임을 강하게 나타낸다.
 STRONG_ORG_TAIL = re.compile(
     r"(?:공사|공단|협회|재단|연구원|연구소|진흥원|과학기술원|대학교|산업부|중기부|과기부)$"
@@ -593,6 +600,10 @@ GENERIC_ORG_SUBJECTS = {
     "기업", "대기업", "중소기업", "스타트업", "연구진", "연구팀", "전문가", "당국",
     "제조사", "건설사", "통신사", "보험사", "증권사", "운영사", "발전사", "시공사",
     "완성차", "빅테크", "플랫폼사", "배터리사", "반도체사", "에너지사",
+    "철회", "지원", "시도", "재시도", "요청", "재요청", "논의", "협의", "합의",
+    "발표", "검토", "재검토", "추진", "확대", "강화", "개선", "전환", "도입",
+    "중단", "재개", "착수", "승인", "반대", "찬성", "결정", "확정", "연기",
+    "보류", "통과", "폐기", "제안", "촉구", "경고", "사과", "해명",
 }
 TITLE_TAIL = re.compile(r"(의원|위원장|장관|차관|사장|대표|회장|교수|본부장|실장|국장|과장)$")
 
@@ -716,7 +727,11 @@ def extract_orgs(text: str, limit: int = 4) -> list[str]:
                 and candidate not in GENERIC_ORG_SUBJECTS
                 and not TITLE_TAIL.search(candidate)
                 and not _looks_like_tech(candidate)
-                and (ORG_TAIL.search(candidate) or re.search(r"[A-Za-z]{2,}", candidate))
+                and (
+                    INSTITUTION_TAIL.search(candidate)
+                    or (len(candidate) >= 3 and LOCAL_GOV_TAIL.search(candidate))
+                    or LATIN_ORG_NAME.fullmatch(candidate)
+                )
             ):
                 found.append(candidate)
     return found[:limit]
