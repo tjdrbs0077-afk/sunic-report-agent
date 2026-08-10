@@ -562,26 +562,118 @@ def apply_layout_base(prs: Presentation, cfg: dict[str, Any]) -> None:
             r.font.color.rgb = parse_hex(frame.get("header_text_color"), "#000000")
 
 
-# 표 위에 두는 여백 — 표 캡션(【 표 】 0.37in)이 들어갈 자리 + 시각적 여유
-BODY_TABLE_GAP = 0.45
+TABLE_GAP = 0.26        # 표와 표 사이 (양식 실측 좌표는 1.4in 이나 벌어져 있다)
+FRAME_PAD = 0.12        # 프레임 안쪽 바닥 여유
+MIN_GAP = 0.08          # 자리가 모자랄 때까지 줄일 수 있는 최소 간격
+
+
+def body_line_gap(cfg: dict[str, Any] | None = None) -> float:
+    """본문 문단과 문단 사이 간격(inch).
+
+    표는 '본문 다음 문단'처럼 딱 이만큼만 띄우고 바로 이어 붙인다.
+    양식 실측 좌표(표 y)를 지키려 들면 본문이 짧을 때 표가 한참 아래로
+    떨어져 글과 표 사이가 텅 빈다.
+    """
+    try:
+        levels = _std_levels()
+        spc = float(levels[0].get("spc_before", 10)) if levels else 10.0
+    except Exception:
+        spc = 10.0
+    return round(max(spc, 4.0) / 72, 3)
+
+
+def table_keys(ptype: int) -> list[str]:
+    if ptype == 1:
+        return ["table_type1"]
+    if ptype == 3:
+        return ["table_type3_top", "table_type3_bottom"]
+    return []
+
+
+def stack_floor(ptype: int, cfg: dict[str, Any]) -> float:
+    """표 더미가 넘어서면 안 되는 바닥 좌표(inch).
+
+    유형 1 은 하단에 타임라인 띠가 고정으로 깔려 있으므로 그 위에서 멈춘다.
+    (이걸 빼먹으면 표 마지막 줄과 타임라인 글자가 겹친다.)
+    """
+    floor = float(cfg["frame"]["y"]) + float(cfg["frame"]["h"]) - FRAME_PAD
+    timeline = cfg.get("timeline") if ptype == 1 else None
+    if timeline:
+        floor = min(floor, float(timeline["y"]) - FRAME_PAD)
+    return floor
 
 
 def available_body_height(ptype: int, cfg: dict[str, Any]) -> float:
     """해당 유형에서 본문이 실제로 쓸 수 있는 세로 길이(inch).
 
-    표가 있는 유형은 표 상단에서 멈춘다. 원본 양식의 본문 개체 틀은
-    슬라이드 하단까지 내려와 표와 겹쳐 있기 때문이다.
+    표는 본문 아래로 흘려 쌓으므로(`table_tops`), 본문이 쓸 수 있는 높이는
+    '바닥에서 표 더미와 간격을 뺀 만큼'이다. 예전에는 양식에서 실측한
+    표의 y 좌표에서 멈추게 했는데, 그 좌표가 샘플 보고서의 짧은 본문을 전제로
+    한 값이라 유형 3 에서 본문이 0.86in 밖에 못 쓰고 대부분 잘려 나갔다.
     """
     body = cfg["body"]
     top, height = float(body["y"]), float(body["h"])
-    tops: list[float] = []
-    if ptype == 1:
-        tops.append(float(cfg["table_type1"]["y"]))
-    elif ptype == 3:
-        tops.append(float(cfg["table_type3_top"]["y"]))
-    if tops:
-        height = min(height, min(tops) - BODY_TABLE_GAP - top)
+    keys = table_keys(ptype)
+    if keys:
+        stack = sum(float(cfg[key]["h"]) for key in keys) + TABLE_GAP * (len(keys) - 1)
+        height = min(height, stack_floor(ptype, cfg) - stack - body_line_gap(cfg) - top)
     return max(0.4, round(height, 3))
+
+
+def _body_used_height(items: list[dict[str, Any]], cfg: dict[str, Any]) -> float:
+    """본문이 실제로 차지하는 세로 길이(inch) — 표를 어디서부터 놓을지 정하는 값."""
+    body = cfg["body"]
+    sizes = body.get("level_sizes") or [14, 13, 12, 11, 10]
+    return _body_required_pt(items, float(body["w"]), sizes, 1.0) / 72
+
+
+def table_tops(ptype: int, cfg: dict[str, Any],
+               body_items: list[dict[str, Any]]) -> dict[str, float]:
+    """본문 아래로 표를 차례로 쌓아 각 표의 y 좌표를 정한다.
+
+    양식에서 실측한 표 좌표를 그대로 쓰면 세 가지가 깨진다.
+      - 본문이 샘플보다 길면 본문 글자가 표 위로 흘러 **겹친다**
+      - 본문이 짧으면 글 끝과 표 사이가 1~1.5in 텅 빈다
+      - 상단 표와 하단 표 사이에 1.4in 짜리 빈 공간이 남는다
+    그래서 실측 y 는 쓰지 않는다. 표는 **본문의 다음 문단처럼** 글 바로 아래에
+    문단 간격(`body_line_gap`)만 띄우고 붙이고, 두 번째 표부터는 앞 표 아래
+    `TABLE_GAP` 에 붙인다.
+    """
+    keys = table_keys(ptype)
+    if not keys:
+        return {}
+    body = cfg["body"]
+    used = min(_body_used_height(body_items, cfg), available_body_height(ptype, cfg))
+    floor = stack_floor(ptype, cfg)
+
+    def stack(gap_body: float, gap_table: float) -> dict[str, float]:
+        cursor = float(body["y"]) + used + gap_body
+        out: dict[str, float] = {}
+        for i, key in enumerate(keys):
+            if i:
+                cursor += gap_table
+            out[key] = cursor
+            cursor += float(cfg[key]["h"])
+        return out
+
+    tops = stack(body_line_gap(cfg), TABLE_GAP)
+    bottom = tops[keys[-1]] + float(cfg[keys[-1]]["h"])
+    if bottom > floor:                       # 바닥을 넘치면 간격부터 줄인다
+        tops = stack(MIN_GAP, MIN_GAP)
+        bottom = tops[keys[-1]] + float(cfg[keys[-1]]["h"])
+        if bottom > floor:                   # 그래도 넘치면 통째로 위로 당긴다
+            shift = bottom - floor
+            lowest = float(body["y"]) + 0.3
+            tops = {key: max(lowest, value - shift) for key, value in tops.items()}
+    return {key: round(value, 3) for key, value in tops.items()}
+
+
+def _with_top(cfg_obj: dict[str, Any], top: float | None) -> dict[str, Any]:
+    if top is None:
+        return cfg_obj
+    placed = dict(cfg_obj)
+    placed["y"] = top
+    return placed
 
 
 def _limit_body_height(body, ptype: int, cfg: dict[str, Any]) -> None:
@@ -598,18 +690,24 @@ def fill_slide(slide, data: dict[str, Any], slide_no: int, cfg: dict[str, Any]) 
     sidebar = _find_sidebar(slide)
     if sidebar:
         _apply_geometry(sidebar, cfg["sidebar"]); set_text_exact(sidebar, data["sidebar"], cfg["sidebar"])
+    body_items = clean_body_items(data["body"], data.get("page_title", ""))
     body = _find_body(slide)
     if body:
         _apply_geometry(body, cfg["body"])
         _limit_body_height(body, ptype, cfg)
-        write_body_exact(body, clean_body_items(data["body"], data.get("page_title", "")), cfg["body"])
+        write_body_exact(body, body_items, cfg["body"])
 
+    # 표는 본문 길이에 맞춰 아래로 흘려 쌓는다 (겹침·과도한 간격 방지)
+    tops = table_tops(ptype, cfg, body_items)
     tables = sorted([s for s in slide.shapes if s.shape_type == MSO_SHAPE_TYPE.TABLE], key=lambda s: s.top)
     if ptype == 1 and tables:
-        _apply_geometry(tables[0], cfg["table_type1"]); fill_table_preserve(tables[0], data.get("table1", {"headers": ["구분", "협의 경과"], "rows": []}), cfg["table_type1"])
+        placed = _with_top(cfg["table_type1"], tops.get("table_type1"))
+        _apply_geometry(tables[0], placed); fill_table_preserve(tables[0], data.get("table1", {"headers": ["구분", "협의 경과"], "rows": []}), placed)
     if ptype == 3 and len(tables) >= 2:
-        _apply_geometry(tables[0], cfg["table_type3_top"]); fill_table_preserve(tables[0], data.get("table1", {"headers": ["구분", "개요", "추진방안"], "rows": []}), cfg["table_type3_top"])
-        _apply_geometry(tables[1], cfg["table_type3_bottom"]); fill_table_preserve(tables[1], data.get("table2", {"headers": ["구분", "개요", "지원", "Infra", "수용성"], "rows": []}), cfg["table_type3_bottom"])
+        top_cfg = _with_top(cfg["table_type3_top"], tops.get("table_type3_top"))
+        bottom_cfg = _with_top(cfg["table_type3_bottom"], tops.get("table_type3_bottom"))
+        _apply_geometry(tables[0], top_cfg); fill_table_preserve(tables[0], data.get("table1", {"headers": ["구분", "개요", "추진방안"], "rows": []}), top_cfg)
+        _apply_geometry(tables[1], bottom_cfg); fill_table_preserve(tables[1], data.get("table2", {"headers": ["구분", "개요", "지원", "Infra", "수용성"], "rows": []}), bottom_cfg)
 
     # 각주. 원본 1페이지에는 각주가 없으므로 2페이지 실측 좌표로 새로 만든다.
     foots = [s for s in slide.shapes if getattr(s, "has_text_frame", False) and s.top > Inches(7.0) and s.width > Inches(8)]
