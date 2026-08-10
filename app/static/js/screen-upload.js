@@ -35,12 +35,30 @@ Screens.s2 = (function(){
     var levels = (rules.body_levels || []);
     var sizes = levels.map(function(l){ return l.size; }).join('/');
     var bullets = levels.map(function(l){ return esc((l.bullet || '').split(':').pop()); }).join('</code> → <code>');
+    var boldLevels = levels.map(function(l, i){ return l.bold ? (i + 1) : null; }).filter(Boolean).join('·');
+    var lineSpacingValues = levels.map(function(l){
+      return Number(l.line_spacing == null ? 100 : l.line_spacing).toFixed(0);
+    });
+    var lineSpacings = lineSpacingValues.every(function(v){ return v === lineSpacingValues[0]; })
+      ? '전 단계 <code>' + (lineSpacingValues[0] || '100') + '%</code>'
+      : '1→5단계 <code>' + lineSpacingValues.join('/') + '%</code>';
+    var paragraphSpacings = levels.map(function(l, i){
+      return Number(l.spc_before == null ? (i < 2 ? 10 : 5) : l.spc_before).toFixed(0);
+    }).join('/');
+    var leftMargins = levels.map(function(l){
+      return (Number(l.marL || 0) / 360000).toFixed(2);
+    }).join('/');
+    var hangingIndents = levels.map(function(l){
+      return (Math.abs(Number(l.indent || 0)) / 360000).toFixed(2);
+    }).join('/');
     var t = rules.table || {}, f = rules.fonts || {}, fr = rules.frame || {};
     var rows = [
       ['글꼴', '영문 <code>' + esc(f.latin || '') + '</code> · 한글 <code>' + esc(f.korean || '') + '</code> · 제목 <code>' + esc(f.heading_korean || '') + '</code>'],
       ['제목', ((rules.title || {}).font_size) + 'pt' + ((rules.title || {}).bold ? ' Bold' : '')],
-      ['본문', levels.length + '단계 ' + sizes + 'pt, 글머리 <code>' + bullets + '</code>'],
-      ['표', '좌 ' + (t.x_in * 2.54).toFixed(2) + 'cm · 폭 ' + (t.width_in * 2.54).toFixed(2) + 'cm 고정, 헤더 <code>' + esc(t.header_fill || '') + '</code> ' + t.header_font_size + 'pt'],
+      ['본문', levels.length + '단계 ' + sizes + 'pt · 굵게 <code>' + (boldLevels || '없음') + (boldLevels ? '단계' : '') + '</code> · 글머리 <code>' + bullets + '</code>'],
+      ['줄간격', lineSpacings + ' · 단락 앞(1→5단계) <code>' + paragraphSpacings + 'pt</code>'],
+      ['들여쓰기', '1→5단계 왼쪽 여백 <code>' + leftMargins + 'cm</code> · 내어쓰기 <code>' + hangingIndents + 'cm</code>'],
+      ['표', '좌 ' + (t.x_in * 2.54).toFixed(2) + 'cm · 폭 ' + (t.width_in * 2.54).toFixed(2) + 'cm 고정 · 헤더 <code>' + esc(t.header_fill || '') + '</code> ' + t.header_font_size + 'pt · 첫 열 <code>' + esc(t.first_col_fill || '#EEECE1') + '</code> · 본문 ' + t.body_font_size + 'pt'],
       ['프레임', '헤더 <code>' + esc(fr.header_fill || '') + '</code> ' + fr.header_font_size + 'pt, 테두리 <code>' + esc(fr.border_color || '') + '</code>'],
       ['각주', ((rules.footnote || {}).font_size) + 'pt, 하단 고정'],
       ['정리', ((rules.cleanup || {}).remove_empty_textbox ? '빈 텍스트상자 제거' : '빈 상자 유지') + ' · ' +
@@ -61,39 +79,72 @@ Screens.s2 = (function(){
       '<input class="ed-field" id="' + id + '" type="' + (type || 'text') + '" ' + (extra || '') +
       ' value="' + esc(value == null ? '' : value) + '"></label>';
   }
+  function checkField(label, id, checked){
+    return '<label class="rule-check"><input type="checkbox" id="' + id + '" ' +
+      (checked ? 'checked' : '') + '><span>' + label + '</span></label>';
+  }
+  function compactField(id, value, type, extra, label){
+    return '<input class="ed-field rule-compact-field" id="' + id + '" type="' + (type || 'text') + '" ' +
+      (extra || '') + ' value="' + esc(value == null ? '' : value) + '" aria-label="' + esc(label || id) + '">';
+  }
+  function ruleSection(title, description, content){
+    return '<section class="rule-edit-section"><div class="rule-edit-section-head"><h4>' + title + '</h4>' +
+      (description ? '<p>' + description + '</p>' : '') + '</div>' + content + '</section>';
+  }
+  function emuToCm(value){ return (Number(value || 0) / 360000).toFixed(2); }
+  function cmToEmu(value){ return Math.round(Number(value || 0) * 360000); }
   function renderRuleEdit(){
     var f = rules.fonts || {}, t = rules.table || {}, fr = rules.frame || {};
     var levels = rules.body_levels || [];
     var html = '';
-    html += '<div class="rule-fields">' +
-      field('영문 글꼴', 'rfLatin', f.latin) +
-      field('한글 글꼴', 'rfKorean', f.korean) +
-      field('제목 한글 글꼴', 'rfHeading', f.heading_korean) +
-      field('제목 크기(pt)', 'rfTitleSize', (rules.title || {}).font_size, 'number', 'step="0.5" min="5" max="60"') +
-      '</div>';
-    html += '<div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">본문 단계별 글자 크기(pt)</div>' +
-      '<div class="rule-levels">' +
-      levels.map(function(l, i){
-        return '<label style="font-size:11px; color:var(--text-muted);">' + (i + 1) + '단계' +
-          '<input class="ed-field" id="rfLv' + i + '" type="number" step="0.5" min="5" max="60" value="' + l.size + '"></label>';
-      }).join('') + '</div>';
-    html += '<div class="rule-fields">' +
-      field('표 헤더 크기(pt)', 'rfTblHead', t.header_font_size, 'number', 'step="0.5" min="5" max="60"') +
-      field('표 본문 크기(pt)', 'rfTblBody', t.body_font_size, 'number', 'step="0.5" min="5" max="60"') +
-      field('각주 크기(pt)', 'rfFoot', (rules.footnote || {}).font_size, 'number', 'step="0.5" min="5" max="60"') +
-      field('프레임 헤더 크기(pt)', 'rfFrameSize', fr.header_font_size, 'number', 'step="0.5" min="5" max="60"') +
-      '</div>';
-    html += '<div class="rule-colors">' +
-      '<label style="font-size:11px; color:var(--text-muted);">표 헤더색<input class="ed-field" id="rfTblFill" type="color" style="padding:4px; height:38px;" value="' + esc(t.header_fill || '#DCE6F2') + '"></label>' +
-      '<label style="font-size:11px; color:var(--text-muted);">프레임 헤더색<input class="ed-field" id="rfFrameFill" type="color" style="padding:4px; height:38px;" value="' + esc(fr.header_fill || '#B7D3EE') + '"></label>' +
-      '<label style="font-size:11px; color:var(--text-muted);">테두리색<input class="ed-field" id="rfBorder" type="color" style="padding:4px; height:38px;" value="' + esc(fr.border_color || '#7F7F7F') + '"></label>' +
-      '</div>';
+    var title = rules.title || {};
+    html += ruleSection('글꼴 · 제목', '보고서 전체 글꼴과 페이지 제목 기준입니다.',
+      '<div class="rule-edit-grid">' +
+        field('영문 글꼴', 'rfLatin', f.latin) +
+        field('한글 글꼴', 'rfKorean', f.korean) +
+        field('제목 한글 글꼴', 'rfHeading', f.heading_korean) +
+        field('제목 크기(pt)', 'rfTitleSize', title.font_size, 'number', 'step="0.5" min="5" max="60"') +
+      '</div><div class="rule-check-row">' + checkField('제목 굵게', 'rfTitleBold', !!title.bold) + '</div>');
+
+    var levelRows = levels.map(function(l, i){
+      return '<tr><th scope="row">' + (i + 1) + '단계</th>' +
+        '<td>' + compactField('rfLvSize' + i, l.size, 'number', 'step="0.5" min="5" max="60"', (i + 1) + '단계 글자 크기') + '</td>' +
+        '<td class="rule-level-check">' + checkField('', 'rfLvBold' + i, !!l.bold) + '</td>' +
+        '<td>' + compactField('rfLvBullet' + i, l.bullet, 'text', '', (i + 1) + '단계 글머리') + '</td>' +
+        '<td>' + compactField('rfLvLine' + i, l.line_spacing == null ? 100 : l.line_spacing, 'number', 'step="1" min="50" max="300"', (i + 1) + '단계 줄간격') + '</td>' +
+        '<td>' + compactField('rfLvBefore' + i, l.spc_before == null ? (i < 2 ? 10 : 5) : l.spc_before, 'number', 'step="0.5" min="0" max="100"', (i + 1) + '단계 단락 앞 간격') + '</td>' +
+        '<td>' + compactField('rfLvMargin' + i, emuToCm(l.marL), 'number', 'step="0.01" min="0" max="25"', (i + 1) + '단계 왼쪽 여백') + '</td>' +
+        '<td>' + compactField('rfLvIndent' + i, emuToCm(Math.abs(Number(l.indent || 0))), 'number', 'step="0.01" min="0" max="25"', (i + 1) + '단계 내어쓰기') + '</td></tr>';
+    }).join('');
+    html += ruleSection('본문 단계 기준', '글머리 예시: auto:1. · auto:1) · wingdings:❑ · char:– · char:•',
+      '<div class="scroll-x"><table class="rule-level-table"><thead><tr>' +
+        '<th>단계</th><th>크기(pt)</th><th>굵게</th><th>글머리</th><th>줄간격(%)</th><th>단락 앞(pt)</th><th>왼쪽 여백(cm)</th><th>내어쓰기(cm)</th>' +
+        '</tr></thead><tbody>' + levelRows + '</tbody></table></div>');
+
+    html += ruleSection('표', '표의 공통 위치·폭과 글자 기준입니다.',
+      '<div class="rule-edit-grid">' +
+        field('왼쪽 위치(cm)', 'rfTblX', (Number(t.x_in || 0) * 2.54).toFixed(2), 'number', 'step="0.01" min="0" max="50"') +
+        field('표 너비(cm)', 'rfTblWidth', (Number(t.width_in || 0) * 2.54).toFixed(2), 'number', 'step="0.01" min="1" max="50"') +
+        field('헤더 글자 크기(pt)', 'rfTblHead', t.header_font_size, 'number', 'step="0.5" min="5" max="60"') +
+        field('본문 글자 크기(pt)', 'rfTblBody', t.body_font_size, 'number', 'step="0.5" min="5" max="60"') +
+        field('헤더색', 'rfTblFill', t.header_fill || '#DCE6F2', 'color', 'style="padding:4px; height:42px;"') +
+        field('첫 열 배경색', 'rfTblFirstColFill', t.first_col_fill || '#EEECE1', 'color', 'style="padding:4px; height:42px;"') +
+      '</div>');
+
+    html += ruleSection('프레임 · 각주', '페이지 프레임과 하단 각주 기준입니다.',
+      '<div class="rule-edit-grid">' +
+        field('프레임 헤더 크기(pt)', 'rfFrameSize', fr.header_font_size, 'number', 'step="0.5" min="5" max="60"') +
+        field('각주 크기(pt)', 'rfFoot', (rules.footnote || {}).font_size, 'number', 'step="0.5" min="5" max="60"') +
+        field('프레임 헤더색', 'rfFrameFill', fr.header_fill || '#B7D3EE', 'color', 'style="padding:4px; height:42px;"') +
+        field('프레임 테두리색', 'rfBorder', fr.border_color || '#7F7F7F', 'color', 'style="padding:4px; height:42px;"') +
+      '</div>');
     var c = rules.cleanup || {};
-    html += '<div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px;">' +
-      '<label style="font-size:13px; display:flex; align-items:center; gap:7px;"><input type="checkbox" id="rfEmpty" ' + (c.remove_empty_textbox ? 'checked' : '') + ' style="accent-color:var(--accent); width:15px; height:15px;">빈 텍스트상자 제거</label>' +
-      '<label style="font-size:13px; display:flex; align-items:center; gap:7px;"><input type="checkbox" id="rfSpace" ' + (c.collapse_spaces ? 'checked' : '') + ' style="accent-color:var(--accent); width:15px; height:15px;">연속 공백 축소</label>' +
-      '</div>';
-    html += '<div style="display:flex; gap:8px;"><button class="btn primary" id="rfSave">기준 저장</button>' +
+    html += ruleSection('정리', '자동 교정 시 적용할 텍스트 정리 기준입니다.',
+      '<div class="rule-check-row">' +
+        checkField('빈 텍스트상자 제거', 'rfEmpty', !!c.remove_empty_textbox) +
+        checkField('연속 공백을 1칸으로 축소', 'rfSpace', !!c.collapse_spaces) +
+      '</div>');
+    html += '<div class="rule-edit-actions"><button class="btn primary" id="rfSave">기준 저장</button>' +
       '<button class="btn ghost" id="rfCancel">취소</button></div>';
 
     $id('ruleEditor').innerHTML = html;
@@ -118,13 +169,23 @@ Screens.s2 = (function(){
     next.fonts.heading_korean = $id('rfHeading').value.trim() || next.fonts.korean;
     next.title = next.title || {};
     next.title.font_size = num('rfTitleSize', 24);
+    next.title.bold = $id('rfTitleBold').checked;
     (next.body_levels || []).forEach(function(l, i){
-      if($id('rfLv' + i)) l.size = num('rfLv' + i, l.size);
+      l.size = num('rfLvSize' + i, l.size);
+      l.bold = $id('rfLvBold' + i).checked;
+      l.bullet = $id('rfLvBullet' + i).value.trim() || l.bullet;
+      l.line_spacing = num('rfLvLine' + i, l.line_spacing == null ? 100 : l.line_spacing);
+      l.spc_before = num('rfLvBefore' + i, l.spc_before == null ? (i < 2 ? 10 : 5) : l.spc_before);
+      l.marL = cmToEmu(num('rfLvMargin' + i, emuToCm(l.marL)));
+      l.indent = -Math.abs(cmToEmu(num('rfLvIndent' + i, emuToCm(Math.abs(Number(l.indent || 0))))));
     });
     next.table = next.table || {};
+    next.table.x_in = num('rfTblX', Number(next.table.x_in || 0) * 2.54) / 2.54;
+    next.table.width_in = num('rfTblWidth', Number(next.table.width_in || 0) * 2.54) / 2.54;
     next.table.header_font_size = num('rfTblHead', 10.5);
     next.table.body_font_size = num('rfTblBody', 10);
     next.table.header_fill = $id('rfTblFill').value.toUpperCase();
+    next.table.first_col_fill = $id('rfTblFirstColFill').value.toUpperCase();
     next.footnote = next.footnote || {};
     next.footnote.font_size = num('rfFoot', 8);
     next.frame = next.frame || {};

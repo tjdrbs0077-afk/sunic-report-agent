@@ -6,58 +6,68 @@ fonts:
   korean: 나눔스퀘어
   heading_korean: 나눔스퀘어 ExtraBold
 title:
-  font_size: 24.0
+  font_size: 24
   bold: true
   x: 0.298612
   y: 0.186044
 body_levels:
 - level: 1
-  size: 14.0
+  size: 14
   bold: true
-  marL: 265113
-  indent: -265113
+  marL: 266400
+  indent: -266400
+  line_spacing: 100
+  spc_before: 10
   bullet: auto:1.
 - level: 2
-  size: 13.0
+  size: 13
   bold: true
-  marL: 538163
-  indent: -266700
+  marL: 536400
+  indent: -266400
+  line_spacing: 100
+  spc_before: 10
   bullet: auto:1)
 - level: 3
-  size: 12.0
+  size: 12
   bold: false
-  marL: 714375
-  indent: -179388
+  marL: 712800
+  indent: -180000
+  line_spacing: 100
+  spc_before: 5
   bullet: wingdings:❑
 - level: 4
-  size: 11.0
+  size: 11
   bold: false
-  marL: 892175
-  indent: -177800
+  marL: 892800
+  indent: -176400
+  line_spacing: 100
+  spc_before: 5
   bullet: char:–
 - level: 5
-  size: 10.0
+  size: 10
   bold: false
-  marL: 1081088
-  indent: -188913
+  marL: 1080000
+  indent: -187200
+  line_spacing: 100
+  spc_before: 5
   bullet: char:•
 table:
-  x_in: 2.89757
-  width_in: 7.519097
+  x_in: 2.8976377952755907
+  width_in: 7.51968503937008
   caption_offset_in: -0.367
   header_fill: '#DCE6F2'
   header_font_size: 10.5
-  body_font_size: 10.0
-  first_col_fill: '#E8E8E8'
+  body_font_size: 10
+  first_col_fill: '#EEECE1'
   gridline:
     width_pt: 0.75
     color: '#BFBFBF'
 frame:
   header_fill: '#B7D3EE'
   border_color: '#7F7F7F'
-  header_font_size: 14.0
+  header_font_size: 14
 footnote:
-  font_size: 8.0
+  font_size: 8
 continuation:
   rule: '동일 대주제가 다음 장으로 이어지면 Lv1 제목 색을 #FFFFFF 로 바꿔 숨긴다'
 overflow:

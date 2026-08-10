@@ -28,7 +28,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app import config
-from app.services import intent, knowledge, llm, news, store
+from app.services import intent, knowledge, llm, news_chat, store
 from app.services.retrieve import (MIN_SCORE, STRONG_SCORE, content_weight,
                                    query_terms, retrieve, slide_document, term_overlap)
 
@@ -324,8 +324,8 @@ def chat(req: ChatRequest):
     # 3) 뉴스 — 외부형 질문이거나 보고서가 없을 때만 검색어를 내보낸다
     need_news = req.use_news and (
         it["name"] == "external" or (not payload and it["name"] != "background"))
-    query = news.extract_query(question)
-    feed = (news.search_news(query, limit=5) if need_news
+    query = news_chat.extract_query(question)
+    feed = (news_chat.search_news(query, limit=5) if need_news
             else {"articles": [], "channel": "off", "sent_query": query, "error": None})
     articles = feed["articles"]
 
@@ -447,7 +447,7 @@ def capabilities():
     return {
         "llm_enabled": llm.is_enabled(),
         "llm_model": model,
-        "news_channel": "naver_api" if news._naver_credentials() else "google_rss",
+        "news_channel": "naver_api" if news_chat._naver_credentials() else "google_rss",
         "internal_db_connected": knowledge.is_connected(),
         "diagnostics": {
             "env_file_loaded": bool(config.ENV_KEYS_LOADED),

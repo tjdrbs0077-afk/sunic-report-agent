@@ -150,7 +150,9 @@ Screens.s4 = (function(){
   /* ── 캔버스 ── */
   function miniTable(spec){
     if(!spec) return '';
-    return '<table style="font-size:8px; width:100%; border-collapse:collapse;"><thead><tr>' +
+    /* height:100% — 개체 상자를 꽉 채워야 화면에서 보이는 표 간격이
+       실제 PPT 의 표 간격과 같아진다 (상자는 크고 표만 작으면 헐거워 보인다) */
+    return '<table style="font-size:8px; width:100%; height:100%; border-collapse:collapse;"><thead><tr>' +
       spec.headers.map(function(h){ return '<th style="padding:1px 4px; border-bottom:1px solid var(--grid);">' + esc(h) + '</th>'; }).join('') +
       '</tr></thead><tbody>' +
       spec.rows.slice(0, 5).map(function(row){
@@ -193,7 +195,7 @@ Screens.s4 = (function(){
     var lvSizes = (c.body && c.body.level_sizes) || [14, 13, 12, 11, 10];
     var bodyW = (c.body && c.body.w) || 7.5;
     html += objHtml('body', c.body,
-      s.body.map(function(x, i){
+      '<div class="ed-body-content" style="display:flow-root;">' + s.body.map(function(x, i){
         var lv = Math.min(x.level, 4);
         var bullet;
         if(lv === 0){ bulletCounters[0]++; bulletCounters[1] = 0; bullet = bulletCounters[0] + '.'; }
@@ -206,7 +208,7 @@ Screens.s4 = (function(){
           'font-size:' + Math.round(lvSizes[lv] / lvSizes[0] * 100) + '%;' +
           'font-weight:' + (lv === 0 ? '700' : '400') + ';';
         return '<div style="' + stl + '">' + bullet + ' ' + editable('body', i, x.text) + '</div>';
-      }).join(''), 4);
+      }).join('') + '</div>', 4);
     if(s.template_type === 1){
       html += objHtml('table_type1', c.table_type1, miniTable(s.table1), 5);
       html += objHtml('timeline', c.timeline,
@@ -236,6 +238,123 @@ Screens.s4 = (function(){
       // 드래그와 충돌하지 않도록 텍스트 조각에서 시작한 포인터는 캔버스로 넘기지 않는다.
       el.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
       el.addEventListener('dblclick', function(e){ e.stopPropagation(); startInline(el); });
+    });
+    flowBodyAndTables(canvas, s, c);
+  }
+
+  /* ── 본문·표 흐름 배치 ──────────────────────────────────
+     양식에서 실측한 표 좌표는 '샘플 보고서의 본문 길이'를 전제로 한다.
+     본문이 그보다 길면 본문 상자(높이 6in)가 표 위로 흘러 글자와 표가 겹치고,
+     반대로 짧으면 표와 표 사이에 1.4in 짜리 빈 공간이 남는다.
+     그래서 렌더 후 실제 높이를 재서 본문 → 표 → 표 순으로 쌓아 올린다.
+     builder.py 의 available_body_height() 와 같은 규칙(BODY_TABLE_GAP)이다.
+
+     사용자가 직접 끌어 옮긴 개체는 건드리지 않는다. */
+  /* 본문 문단 사이 간격(10pt)을 그대로 쓴다 — 표는 '본문 다음 문단'처럼 바로 아래 붙는다.
+     builder.py 의 body_line_gap() 과 같은 값. */
+  var BODY_TABLE_GAP = 10 / 72;
+  var TABLE_GAP = 0.26;        /* 표와 표 사이 */
+  var MIN_GAP = 0.08;          /* 자리가 모자랄 때까지 줄일 수 있는 최소 간격 */
+  var FRAME_PAD = 0.12;
+  /* 흐름 배치로 실제 놓인 좌표. 드래그 시작점과 좌표 입력칸이 화면과 어긋나지 않도록 기억해 둔다. */
+  var flowed = {};
+
+  /* 좌표 패널·드래그가 기준으로 삼을 값 — 자동 배치된 개체는 화면에 놓인 값을 쓴다 */
+  function placedCfg(key){
+    var cfg = normalizeCfg(key, effective()[key]);
+    if(flowed[key] && !movedByUser(key)){
+      cfg = clone(cfg);
+      cfg.y = +flowed[key].y.toFixed(3);
+      cfg.h = +flowed[key].h.toFixed(3);
+    }
+    return cfg;
+  }
+
+  function tableKeys(s){
+    if(s.template_type === 1) return ['table_type1'];
+    if(s.template_type === 3) return ['table_type3_top', 'table_type3_bottom'];
+    return [];
+  }
+  /* 이 개체의 세로 위치를 사용자가 직접 정했는가 (드래그·좌표 입력) */
+  function movedByUser(key){
+    var slidePatch = (overrides.slides || {})[String(curSlide)] || {};
+    var globalPatch = overrides.global || {};
+    return (slidePatch[key] && slidePatch[key].y !== undefined) ||
+           (globalPatch[key] && globalPatch[key].y !== undefined);
+  }
+
+  function flowBodyAndTables(canvas, s, c){
+    var keys = tableKeys(s);
+    var canvasH = canvas.clientHeight;
+    flowed = {};
+    if(!canvasH) return;
+    function toIn(px){ return px / canvasH * H; }
+    function setTop(el, y){ el.style.top = pctY(y) + '%'; }
+    function setHeight(el, h){ el.style.height = pctY(h) + '%'; }
+
+    var bodyEl = canvas.querySelector('.ed-obj[data-key="body"]');
+    var bodyContent = bodyEl && bodyEl.querySelector('.ed-body-content');
+    var bodyCfg = normalizeCfg('body', c.body);
+    var frame = normalizeCfg('frame', c.frame);
+    var floor = frame.y + frame.h - FRAME_PAD;
+    /* 유형 1 은 하단에 타임라인 띠가 깔려 있다 — 표는 그 위에서 멈춰야 겹치지 않는다 */
+    if(s.template_type === 1 && c.timeline){
+      var tl = normalizeCfg('timeline', c.timeline);
+      floor = Math.min(floor, tl.y - FRAME_PAD);
+    }
+
+    /* 본문 상자는 글 길이만큼만 차지하게 한다 (원래는 6in 고정이라 표를 덮었다) */
+    var bodyH = bodyCfg.h;
+    if(bodyEl && keys.length && !movedByUser('body')){
+      /* bodyEl 자체는 양식상 6in 높이라 scrollHeight를 재면 항상 박스 전체가 나온다.
+         실제 문단 래퍼만 측정해야 마지막 글 바로 아래로 표가 이어진다. */
+      var contentPx = bodyContent ? bodyContent.getBoundingClientRect().height : 0;
+      bodyH = Math.min(Math.max(toIn(contentPx), 0.3), bodyCfg.h);
+      setHeight(bodyEl, bodyH);
+      flowed.body = { y:bodyCfg.y, h:bodyH };
+    }
+    if(!keys.length) return;
+
+    /* 표 높이는 양식 실측값을 그대로 쓴다 — 실제 PPT 출력과 같은 기하가 되도록 */
+    var boxes = [];
+    keys.forEach(function(key){
+      var el = canvas.querySelector('.ed-obj[data-key="' + key + '"]');
+      if(!el) return;
+      var cfg = normalizeCfg(key, c[key]);
+      boxes.push({ el:el, key:key, cfg:cfg, h:Math.max(0.3, cfg.h) });
+    });
+    if(!boxes.length) return;
+
+    function place(gapBody, gapTable){
+      /* 표는 본문 글이 끝나는 자리 바로 아래에 붙인다 (양식 실측 y 는 쓰지 않는다 —
+         샘플의 짧은 본문 기준 값이라 글과 표 사이가 텅 비게 만든다) */
+      var y = bodyCfg.y + bodyH + gapBody;
+      return boxes.map(function(box, i){
+        if(i > 0) y += gapTable;
+        var top = y;
+        y += box.h;
+        return top;
+      });
+    }
+
+    var tops = place(BODY_TABLE_GAP, TABLE_GAP);
+    var overflow = tops[tops.length - 1] + boxes[boxes.length - 1].h - floor;
+    if(overflow > 0){
+      /* 바닥을 넘치면 간격부터 줄이고, 그래도 모자라면 본문을 그만큼 잘라 올린다 */
+      tops = place(MIN_GAP, MIN_GAP);
+      var still = tops[tops.length - 1] + boxes[boxes.length - 1].h - floor;
+      if(still > 0 && bodyEl && !movedByUser('body')){
+        bodyH = Math.max(0.3, bodyH - still);
+        setHeight(bodyEl, bodyH);
+        flowed.body = { y:bodyCfg.y, h:bodyH };
+        tops = place(MIN_GAP, MIN_GAP);
+      }
+    }
+    boxes.forEach(function(box, i){
+      if(movedByUser(box.key)) return;
+      setTop(box.el, tops[i]);
+      setHeight(box.el, box.h);
+      flowed[box.key] = { y:tops[i], h:box.h };
     });
   }
 
@@ -460,7 +579,8 @@ Screens.s4 = (function(){
       selectedKey = el.dataset.key;
       mode = m;
       pushUndo();
-      start = { x: e.clientX, y: e.clientY, cfg: normalizeCfg(selectedKey, effective()[selectedKey]) };
+      /* 자동 배치된 표는 화면에 놓인 자리에서 끌기 시작해야 튀지 않는다 */
+      start = { x: e.clientX, y: e.clientY, cfg: placedCfg(selectedKey) };
       window.addEventListener('pointermove', move);
       window.addEventListener('pointerup', end, { once: true });
     }
@@ -519,7 +639,7 @@ Screens.s4 = (function(){
   }
 
   function loadProps(){
-    var cfg = normalizeCfg(selectedKey, effective()[selectedKey]);
+    var cfg = placedCfg(selectedKey);
     $id('edSelLabel').textContent = LABELS[selectedKey] || selectedKey;
     $id('edX').value = (+cfg.x || 0).toFixed(3);
     $id('edY').value = (+cfg.y || 0).toFixed(3);

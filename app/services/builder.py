@@ -33,14 +33,14 @@ WHITE = RGBColor(255, 255, 255)
 # 이전에는 단락 level 만 지정해 번호가 아예 찍히지 않거나 임의로 보였다.
 
 _LEVEL_FALLBACK = [
-    {"marL": 265113, "indent": -265113, "bullet": "auto:1.", "spc_before": 10},
-    {"marL": 538163, "indent": -266700, "bullet": "auto:1)", "spc_before": 10},
-    {"marL": 714375, "indent": -179388, "bullet": "wingdings:❑", "spc_before": 5},
-    {"marL": 892175, "indent": -177800, "bullet": "arial:–", "spc_before": 5},
-    {"marL": 1081088, "indent": -188913, "bullet": "arial:•", "spc_before": 5},
+    {"marL": 265113, "indent": -265113, "bullet": "auto:1.", "line_spacing": 100, "spc_before": 10},
+    {"marL": 538163, "indent": -266700, "bullet": "auto:1)", "line_spacing": 100, "spc_before": 10},
+    {"marL": 714375, "indent": -179388, "bullet": "wingdings:❑", "line_spacing": 100, "spc_before": 5},
+    {"marL": 892175, "indent": -177800, "bullet": "arial:–", "line_spacing": 100, "spc_before": 5},
+    {"marL": 1081088, "indent": -188913, "bullet": "arial:•", "line_spacing": 100, "spc_before": 5},
 ]
 _AUTONUM_TYPES = {"1.": "arabicPeriod", "1)": "arabicParenR", "(1)": "arabicParenBoth", "a.": "alphaLcPeriod"}
-_BULLET_FONTS = {"wingdings": "Wingdings", "arial": "Arial"}
+_BULLET_FONTS = {"wingdings": "Wingdings", "arial": "Arial", "char": "Arial"}
 _std_levels_cache: list[dict[str, Any]] | None = None
 
 
@@ -59,6 +59,12 @@ def _std_levels() -> list[dict[str, Any]]:
     return _std_levels_cache
 
 
+def reset_rule_cache() -> None:
+    """양식 기준을 저장하거나 교체한 뒤 단계별 생성 규칙을 다시 읽게 한다."""
+    global _std_levels_cache
+    _std_levels_cache = None
+
+
 def _apply_bullet(paragraph, level: int, first: bool = False) -> None:
     """단락에 표준 들여쓰기·줄간격·앞 간격과 번호/글머리 기호를 명시한다.
 
@@ -73,9 +79,10 @@ def _apply_bullet(paragraph, level: int, first: bool = False) -> None:
         for el in pPr.findall(qn(tag)):
             pPr.remove(el)
 
-    # 줄간격 100% + 단락 앞 간격 (샘플 실측: 레벨1·2 = 10pt, 3~5 = 5pt)
+    # 단계별 줄간격 + 단락 앞 간격 (샘플 실측: 레벨1·2 = 10pt, 3~5 = 5pt)
     ln = pPr.makeelement(qn("a:lnSpc"), {})
-    ln.append(ln.makeelement(qn("a:spcPct"), {"val": "100000"}))
+    line_spacing = float(spec.get("line_spacing", 100))
+    ln.append(ln.makeelement(qn("a:spcPct"), {"val": str(int(round(line_spacing * 1000)))}))
     pPr.append(ln)
     spc_pt = 0 if first else float(spec.get("spc_before", 0))   # 첫 단락은 위 여백 불필요
     bef = pPr.makeelement(qn("a:spcBef"), {})
@@ -108,6 +115,22 @@ def parse_hex(value: str | None, fallback: str = "#000000") -> RGBColor:
     if len(raw) != 6:
         raw = fallback.lstrip("#")
     return RGBColor(int(raw[0:2], 16), int(raw[2:4], 16), int(raw[4:6], 16))
+
+
+def _set_cell_border(cell, color: str, width_pt: float = 0.75) -> None:
+    """PowerPoint 표 셀의 네 방향 선 색을 동일하게 설정한다."""
+    raw = str(color or "#7F7F7F").lstrip("#").upper()
+    if len(raw) != 6:
+        raw = "7F7F7F"
+    tc_pr = cell._tc.get_or_add_tcPr()
+    for tag in ("a:lnL", "a:lnR", "a:lnT", "a:lnB"):
+        old = tc_pr.find(qn(tag))
+        if old is not None:
+            tc_pr.remove(old)
+        line = etree.SubElement(tc_pr, qn(tag), {"w": str(int(round(width_pt * 12700)))})
+        solid = etree.SubElement(line, qn("a:solidFill"))
+        etree.SubElement(solid, qn("a:srgbClr"), {"val": raw})
+        etree.SubElement(line, qn("a:prstDash"), {"val": "solid"})
 
 
 def safe_rgb(color) -> str | None:
@@ -253,11 +276,15 @@ def _read_placeholder_hierarchy(path: Path) -> list[dict[str, Any]]:
                 bullet = node.find("a:buChar", ns).get("char", "")
             elif node.find("a:buNone", ns) is not None:
                 bullet = "none"
+            line_pct = node.find("a:lnSpc/a:spcPct", ns)
+            before_pts = node.find("a:spcBef/a:spcPts", ns)
             out.append({
                 "level": level - 1,
                 "size_pt": (float(rpr.get("sz")) / 100) if rpr is not None and rpr.get("sz") else None,
                 "margin_left_in": float(node.get("marL", 0)) / EMU,
                 "indent_in": float(node.get("indent", 0)) / EMU,
+                "line_spacing": (float(line_pct.get("val")) / 1000) if line_pct is not None else None,
+                "spc_before": (float(before_pts.get("val")) / 100) if before_pts is not None else None,
                 "bullet": bullet,
             })
     return out
@@ -462,6 +489,9 @@ def replace_cell_text(cell, text: str, header: bool, key: bool, cfg: dict[str, A
     if header:
         p.alignment = PP_ALIGN.CENTER
         cell.fill.solid(); cell.fill.fore_color.rgb = parse_hex(cfg.get("header_fill"), "#DCE6F2")
+    elif key:
+        # 참고 양식: 데이터 행의 맨 왼쪽 구분 열은 따뜻한 회색으로 구분한다.
+        cell.fill.solid(); cell.fill.fore_color.rgb = parse_hex(cfg.get("first_col_fill"), "#EEECE1")
 
 
 def fill_table_preserve(shape, spec: dict[str, Any], cfg: dict[str, Any]) -> None:
@@ -482,19 +512,35 @@ def fill_table_preserve(shape, spec: dict[str, Any], cfg: dict[str, Any]) -> Non
 
 
 def _apply_geometry(shape, cfg: dict[str, Any]) -> None:
-    for attr, key in (("left", "x"), ("top", "y"), ("width", "w"), ("height", "h")):
+    for attr, key in (("left", "x"), ("top", "y"), ("height", "h")):
         if key in cfg:
             setattr(shape, attr, Inches(float(cfg[key])))
+    if "w" not in cfg:
+        return
+    target_width = Inches(float(cfg["w"]))
+    # 표는 GraphicFrame 폭만 바꾸면 열 너비가 그대로 남는다. 기존 비율을 유지해 함께 조정한다.
+    if getattr(shape, "has_table", False):
+        columns = list(shape.table.columns)
+        current_width = sum(int(column.width) for column in columns)
+        if columns and current_width > 0:
+            used = 0
+            for column in columns[:-1]:
+                width = int(round(int(target_width) * int(column.width) / current_width))
+                column.width = width
+                used += width
+            columns[-1].width = max(1, int(target_width) - used)
+    shape.width = target_width
 
 
 def apply_rule_fonts(profile: dict[str, Any]) -> dict[str, Any]:
-    """config/standard_rules.yaml의 fonts 설정을 프로파일 전체에 반영한다.
+    """config/standard_rules.yaml의 직접 편집값을 생성 프로파일 전체에 반영한다.
 
-    기준을 직접 수정하면(예: 나눔스퀘어 → 맑은 고딕) 생성되는 PPT 폰트가 함께 바뀐다.
+    기준을 직접 수정하면 글꼴뿐 아니라 제목·본문·표·프레임·각주도 생성 PPT에 적용된다.
     """
     from app.services import validator
 
-    fonts = validator.load_rules().get("fonts") or {}
+    rules = validator.load_rules()
+    fonts = rules.get("fonts") or {}
     latin = fonts.get("latin") or "Corbel"
     korean = fonts.get("korean") or "나눔스퀘어"
     heading = fonts.get("heading_korean") or korean
@@ -507,17 +553,39 @@ def apply_rule_fonts(profile: dict[str, Any]) -> dict[str, Any]:
     profile["body"]["font_ea"] = korean
     profile["body"]["level_ea_fonts"] = [heading, korean, korean, korean, korean]
     # 레벨별 크기·볼드도 standard_rules.yaml body_levels 를 단일 진실로 삼는다
-    rule_levels = validator.load_rules().get("body_levels") or []
+    title_rules = rules.get("title") or {}
+    for key in ("font_size", "bold", "x", "y"):
+        if key in title_rules:
+            profile["title"][key] = title_rules[key]
+
+    rule_levels = rules.get("body_levels") or []
     if len(rule_levels) >= 5:
         profile["body"]["level_sizes"] = [
             float(lv.get("size", d)) for lv, d in zip(rule_levels, [14, 13, 12, 11, 10])]
         profile["body"]["level_bold"] = [bool(lv.get("bold", False)) for lv in rule_levels[:5]]
     profile["footnote"]["font_latin"] = latin
     profile["footnote"]["font_ea"] = korean
+    footnote_rules = rules.get("footnote") or {}
+    if "font_size" in footnote_rules:
+        profile["footnote"]["font_size"] = float(footnote_rules["font_size"])
+
+    table_rules = rules.get("table") or {}
     for key in ("table_type1", "table_type3_top", "table_type3_bottom"):
         profile[key]["font_latin"] = latin
         profile[key]["font_ea"] = korean
         profile[key]["header_font_ea"] = heading
+        if "x_in" in table_rules:
+            profile[key]["x"] = float(table_rules["x_in"])
+        if "width_in" in table_rules:
+            profile[key]["w"] = float(table_rules["width_in"])
+        for rule_key in ("header_fill", "first_col_fill", "header_font_size", "body_font_size"):
+            if rule_key in table_rules:
+                profile[key][rule_key] = table_rules[rule_key]
+
+    frame_rules = rules.get("frame") or {}
+    for key in ("header_fill", "border_color", "header_font_size"):
+        if key in frame_rules:
+            profile["frame"][key] = frame_rules[key]
     return profile
 
 
@@ -551,6 +619,9 @@ def apply_layout_base(prs: Presentation, cfg: dict[str, Any]) -> None:
     frame_shape.table.columns[1].width = Inches(float(frame["w"] - frame["sidebar_w"]))
     frame_shape.table.rows[0].height = Inches(float(frame["header_h"]))
     frame_shape.table.rows[1].height = Inches(float(frame["h"] - frame["header_h"]))
+    for row in frame_shape.table.rows:
+        for cell in row.cells:
+            _set_cell_border(cell, frame.get("border_color", "#7F7F7F"))
     for c in range(2):
         cell = frame_shape.table.cell(0, c)
         cell.fill.solid(); cell.fill.fore_color.rgb = parse_hex(frame.get("header_fill"), "#B7D3EE")
@@ -562,26 +633,118 @@ def apply_layout_base(prs: Presentation, cfg: dict[str, Any]) -> None:
             r.font.color.rgb = parse_hex(frame.get("header_text_color"), "#000000")
 
 
-# 표 위에 두는 여백 — 표 캡션(【 표 】 0.37in)이 들어갈 자리 + 시각적 여유
-BODY_TABLE_GAP = 0.45
+TABLE_GAP = 0.26        # 표와 표 사이 (양식 실측 좌표는 1.4in 이나 벌어져 있다)
+FRAME_PAD = 0.12        # 프레임 안쪽 바닥 여유
+MIN_GAP = 0.08          # 자리가 모자랄 때까지 줄일 수 있는 최소 간격
+
+
+def body_line_gap(cfg: dict[str, Any] | None = None) -> float:
+    """본문 문단과 문단 사이 간격(inch).
+
+    표는 '본문 다음 문단'처럼 딱 이만큼만 띄우고 바로 이어 붙인다.
+    양식 실측 좌표(표 y)를 지키려 들면 본문이 짧을 때 표가 한참 아래로
+    떨어져 글과 표 사이가 텅 빈다.
+    """
+    try:
+        levels = _std_levels()
+        spc = float(levels[0].get("spc_before", 10)) if levels else 10.0
+    except Exception:
+        spc = 10.0
+    return round(max(spc, 4.0) / 72, 3)
+
+
+def table_keys(ptype: int) -> list[str]:
+    if ptype == 1:
+        return ["table_type1"]
+    if ptype == 3:
+        return ["table_type3_top", "table_type3_bottom"]
+    return []
+
+
+def stack_floor(ptype: int, cfg: dict[str, Any]) -> float:
+    """표 더미가 넘어서면 안 되는 바닥 좌표(inch).
+
+    유형 1 은 하단에 타임라인 띠가 고정으로 깔려 있으므로 그 위에서 멈춘다.
+    (이걸 빼먹으면 표 마지막 줄과 타임라인 글자가 겹친다.)
+    """
+    floor = float(cfg["frame"]["y"]) + float(cfg["frame"]["h"]) - FRAME_PAD
+    timeline = cfg.get("timeline") if ptype == 1 else None
+    if timeline:
+        floor = min(floor, float(timeline["y"]) - FRAME_PAD)
+    return floor
 
 
 def available_body_height(ptype: int, cfg: dict[str, Any]) -> float:
     """해당 유형에서 본문이 실제로 쓸 수 있는 세로 길이(inch).
 
-    표가 있는 유형은 표 상단에서 멈춘다. 원본 양식의 본문 개체 틀은
-    슬라이드 하단까지 내려와 표와 겹쳐 있기 때문이다.
+    표는 본문 아래로 흘려 쌓으므로(`table_tops`), 본문이 쓸 수 있는 높이는
+    '바닥에서 표 더미와 간격을 뺀 만큼'이다. 예전에는 양식에서 실측한
+    표의 y 좌표에서 멈추게 했는데, 그 좌표가 샘플 보고서의 짧은 본문을 전제로
+    한 값이라 유형 3 에서 본문이 0.86in 밖에 못 쓰고 대부분 잘려 나갔다.
     """
     body = cfg["body"]
     top, height = float(body["y"]), float(body["h"])
-    tops: list[float] = []
-    if ptype == 1:
-        tops.append(float(cfg["table_type1"]["y"]))
-    elif ptype == 3:
-        tops.append(float(cfg["table_type3_top"]["y"]))
-    if tops:
-        height = min(height, min(tops) - BODY_TABLE_GAP - top)
+    keys = table_keys(ptype)
+    if keys:
+        stack = sum(float(cfg[key]["h"]) for key in keys) + TABLE_GAP * (len(keys) - 1)
+        height = min(height, stack_floor(ptype, cfg) - stack - body_line_gap(cfg) - top)
     return max(0.4, round(height, 3))
+
+
+def _body_used_height(items: list[dict[str, Any]], cfg: dict[str, Any]) -> float:
+    """본문이 실제로 차지하는 세로 길이(inch) — 표를 어디서부터 놓을지 정하는 값."""
+    body = cfg["body"]
+    sizes = body.get("level_sizes") or [14, 13, 12, 11, 10]
+    return _body_required_pt(items, float(body["w"]), sizes, 1.0) / 72
+
+
+def table_tops(ptype: int, cfg: dict[str, Any],
+               body_items: list[dict[str, Any]]) -> dict[str, float]:
+    """본문 아래로 표를 차례로 쌓아 각 표의 y 좌표를 정한다.
+
+    양식에서 실측한 표 좌표를 그대로 쓰면 세 가지가 깨진다.
+      - 본문이 샘플보다 길면 본문 글자가 표 위로 흘러 **겹친다**
+      - 본문이 짧으면 글 끝과 표 사이가 1~1.5in 텅 빈다
+      - 상단 표와 하단 표 사이에 1.4in 짜리 빈 공간이 남는다
+    그래서 실측 y 는 쓰지 않는다. 표는 **본문의 다음 문단처럼** 글 바로 아래에
+    문단 간격(`body_line_gap`)만 띄우고 붙이고, 두 번째 표부터는 앞 표 아래
+    `TABLE_GAP` 에 붙인다.
+    """
+    keys = table_keys(ptype)
+    if not keys:
+        return {}
+    body = cfg["body"]
+    used = min(_body_used_height(body_items, cfg), available_body_height(ptype, cfg))
+    floor = stack_floor(ptype, cfg)
+
+    def stack(gap_body: float, gap_table: float) -> dict[str, float]:
+        cursor = float(body["y"]) + used + gap_body
+        out: dict[str, float] = {}
+        for i, key in enumerate(keys):
+            if i:
+                cursor += gap_table
+            out[key] = cursor
+            cursor += float(cfg[key]["h"])
+        return out
+
+    tops = stack(body_line_gap(cfg), TABLE_GAP)
+    bottom = tops[keys[-1]] + float(cfg[keys[-1]]["h"])
+    if bottom > floor:                       # 바닥을 넘치면 간격부터 줄인다
+        tops = stack(MIN_GAP, MIN_GAP)
+        bottom = tops[keys[-1]] + float(cfg[keys[-1]]["h"])
+        if bottom > floor:                   # 그래도 넘치면 통째로 위로 당긴다
+            shift = bottom - floor
+            lowest = float(body["y"]) + 0.3
+            tops = {key: max(lowest, value - shift) for key, value in tops.items()}
+    return {key: round(value, 3) for key, value in tops.items()}
+
+
+def _with_top(cfg_obj: dict[str, Any], top: float | None) -> dict[str, Any]:
+    if top is None:
+        return cfg_obj
+    placed = dict(cfg_obj)
+    placed["y"] = top
+    return placed
 
 
 def _limit_body_height(body, ptype: int, cfg: dict[str, Any]) -> None:
@@ -598,18 +761,24 @@ def fill_slide(slide, data: dict[str, Any], slide_no: int, cfg: dict[str, Any]) 
     sidebar = _find_sidebar(slide)
     if sidebar:
         _apply_geometry(sidebar, cfg["sidebar"]); set_text_exact(sidebar, data["sidebar"], cfg["sidebar"])
+    body_items = clean_body_items(data["body"], data.get("page_title", ""))
     body = _find_body(slide)
     if body:
         _apply_geometry(body, cfg["body"])
         _limit_body_height(body, ptype, cfg)
-        write_body_exact(body, clean_body_items(data["body"], data.get("page_title", "")), cfg["body"])
+        write_body_exact(body, body_items, cfg["body"])
 
+    # 표는 본문 길이에 맞춰 아래로 흘려 쌓는다 (겹침·과도한 간격 방지)
+    tops = table_tops(ptype, cfg, body_items)
     tables = sorted([s for s in slide.shapes if s.shape_type == MSO_SHAPE_TYPE.TABLE], key=lambda s: s.top)
     if ptype == 1 and tables:
-        _apply_geometry(tables[0], cfg["table_type1"]); fill_table_preserve(tables[0], data.get("table1", {"headers": ["구분", "협의 경과"], "rows": []}), cfg["table_type1"])
+        placed = _with_top(cfg["table_type1"], tops.get("table_type1"))
+        _apply_geometry(tables[0], placed); fill_table_preserve(tables[0], data.get("table1", {"headers": ["구분", "협의 경과"], "rows": []}), placed)
     if ptype == 3 and len(tables) >= 2:
-        _apply_geometry(tables[0], cfg["table_type3_top"]); fill_table_preserve(tables[0], data.get("table1", {"headers": ["구분", "개요", "추진방안"], "rows": []}), cfg["table_type3_top"])
-        _apply_geometry(tables[1], cfg["table_type3_bottom"]); fill_table_preserve(tables[1], data.get("table2", {"headers": ["구분", "개요", "지원", "Infra", "수용성"], "rows": []}), cfg["table_type3_bottom"])
+        top_cfg = _with_top(cfg["table_type3_top"], tops.get("table_type3_top"))
+        bottom_cfg = _with_top(cfg["table_type3_bottom"], tops.get("table_type3_bottom"))
+        _apply_geometry(tables[0], top_cfg); fill_table_preserve(tables[0], data.get("table1", {"headers": ["구분", "개요", "추진방안"], "rows": []}), top_cfg)
+        _apply_geometry(tables[1], bottom_cfg); fill_table_preserve(tables[1], data.get("table2", {"headers": ["구분", "개요", "지원", "Infra", "수용성"], "rows": []}), bottom_cfg)
 
     # 각주. 원본 1페이지에는 각주가 없으므로 2페이지 실측 좌표로 새로 만든다.
     foots = [s for s in slide.shapes if getattr(s, "has_text_frame", False) and s.top > Inches(7.0) and s.width > Inches(8)]

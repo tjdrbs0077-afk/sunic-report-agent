@@ -22,6 +22,14 @@ class RulesSaveRequest(BaseModel):
     rules: dict[str, Any]
 
 
+def _invalidate_rule_caches() -> None:
+    """저장 직후 다음 검사·생성 요청부터 새 기준을 읽도록 캐시를 비운다."""
+    from app.services import builder
+
+    builder.reset_rule_cache()
+    config.PROFILE_CACHE.unlink(missing_ok=True)
+
+
 @router.get("/rules")
 def rules() -> dict[str, Any]:
     return validator.load_rules()
@@ -41,12 +49,48 @@ def update_rules(req: RulesSaveRequest):
     for level in levels:
         try:
             size = float(level.get("size", 0))
+            line_spacing = float(level.get("line_spacing", 100))
+            spc_before = float(level.get("spc_before", 0))
+            margin = int(level.get("marL", 0))
+            indent = int(level.get("indent", 0))
         except (TypeError, ValueError):
-            raise HTTPException(400, "본문 단계의 글자 크기는 숫자여야 합니다.")
+            raise HTTPException(400, "본문 단계의 크기·간격·들여쓰기는 숫자여야 합니다.")
         if not (5 <= size <= 60):
             raise HTTPException(400, f"본문 글자 크기 {size}pt는 허용 범위(5–60pt)를 벗어납니다.")
+        if not (50 <= line_spacing <= 300):
+            raise HTTPException(400, f"줄간격 {line_spacing}%는 허용 범위(50–300%)를 벗어납니다.")
+        if not (0 <= spc_before <= 100):
+            raise HTTPException(400, f"단락 앞 간격 {spc_before}pt는 허용 범위(0–100pt)를 벗어납니다.")
+        if not (0 <= margin <= 9_000_000) or not (-9_000_000 <= indent <= 0):
+            raise HTTPException(400, "들여쓰기 값은 0–25cm 범위여야 합니다.")
+        if not str(level.get("bullet") or "").strip():
+            raise HTTPException(400, "각 본문 단계의 글머리 기준을 입력해야 합니다.")
+
+    title = req.rules.get("title") or {}
+    table = req.rules.get("table") or {}
+    try:
+        title_size = float(title.get("font_size", 0))
+        table_x = float(table.get("x_in", 0))
+        table_width = float(table.get("width_in", 0))
+        table_head_size = float(table.get("header_font_size", 0))
+        table_body_size = float(table.get("body_font_size", 0))
+        frame_size = float((req.rules.get("frame") or {}).get("header_font_size", 0))
+        footnote_size = float((req.rules.get("footnote") or {}).get("font_size", 0))
+        canvas_width = float((req.rules.get("canvas") or {}).get("width_in", 10.833333))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "제목·표·프레임·각주 기준은 숫자로 입력해야 합니다.")
+    if not (5 <= title_size <= 60):
+        raise HTTPException(400, "제목 글자 크기는 5–60pt 범위여야 합니다.")
+    if table_x < 0 or table_width <= 0:
+        raise HTTPException(400, "표 위치와 너비를 확인해 주세요.")
+    if table_x + table_width > canvas_width + 0.01:
+        raise HTTPException(400, "표가 슬라이드 오른쪽 경계를 벗어납니다.")
+    if not (5 <= table_head_size <= 60) or not (5 <= table_body_size <= 60):
+        raise HTTPException(400, "표 글자 크기는 5–60pt 범위여야 합니다.")
+    if not (5 <= frame_size <= 60) or not (5 <= footnote_size <= 60):
+        raise HTTPException(400, "프레임과 각주 글자 크기는 5–60pt 범위여야 합니다.")
     saved = validator.save_rules(req.rules)
-    config.PROFILE_CACHE.unlink(missing_ok=True)
+    _invalidate_rule_caches()
     return {"ok": True, "rules": saved}
 
 
@@ -160,7 +204,7 @@ async def upload_template(file: UploadFile = File(...)):
     config.TEMPLATE_STATE.write_text(
         json.dumps({"file": target.name, "source": filename}, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    config.PROFILE_CACHE.unlink(missing_ok=True)
+    _invalidate_rule_caches()
     return {"ok": True, "template": target.name, "rules": derived}
 
 
@@ -168,7 +212,7 @@ async def upload_template(file: UploadFile = File(...)):
 def reset_template():
     """기본 제공 양식(보고양식_Sample_4팀.pptx)으로 되돌린다."""
     config.TEMPLATE_STATE.unlink(missing_ok=True)
-    config.PROFILE_CACHE.unlink(missing_ok=True)
     derived = validator.derive_rules_from_pptx(config.DEFAULT_TEMPLATE)
     validator.save_rules(derived)
+    _invalidate_rule_caches()
     return {"ok": True, "template": config.DEFAULT_TEMPLATE.name, "rules": derived}
