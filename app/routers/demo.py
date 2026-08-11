@@ -39,7 +39,7 @@ def demo_units() -> dict[str, Any]:
 def demo_generate(req: DemoRequest):
     unit_ids = [u["id"] for u in demo_data.BUSINESS_UNITS] if req.all_units else req.unit_ids
     if not unit_ids:
-        raise HTTPException(400, "생성할 사업단을 선택해 주세요.")
+        raise HTTPException(400, "생성할 보고서를 선택해 주세요.")
 
     created: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
